@@ -1,0 +1,11 @@
+apiVersion: sql.tanzu.vmware.com/v1
+kind: Postgres
+metadata:
+  name: pg-anomaly
+spec:
+  storageClassName: generic
+  monitorStorageClassName: generic
+  highAvailability:
+    enabled: true
+  seccompProfile:
+    type: Unconfined

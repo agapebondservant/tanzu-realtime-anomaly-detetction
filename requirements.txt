@@ -1,0 +1,9 @@
+matplotlib
+pmdarima
+prophet
+psycopg2-binary
+sqlalchemy
+python-dotenv
+pandas
+wheel
+scikit-learn

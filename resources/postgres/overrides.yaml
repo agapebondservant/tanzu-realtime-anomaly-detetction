@@ -1,0 +1,2 @@
+operatorImageRepository: oawofolu/postgres-operator:v1.7.1
+postgresImageRepository: oawofolu/postgres-instance:v1.7.1
