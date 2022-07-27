@@ -1,4 +1,4 @@
-### DEPLOYING ANOMALY DETECTION WORKSHOP
+# DEPLOYING ANOMALY DETECTION WORKSHOP
 
 NOTE:
 * Currently requires **cluster-admin** privileges to set up.
@@ -57,4 +57,3 @@ kubectl apply -f resources/postgres/postgres.yaml -n rt-analytics
 ```
 python -c "from app.main.python import airline_analytics; airline_analytics.ingest_data('test')"
 ```
-# tanzu-realtime-anomaly-detetction
