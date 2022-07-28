@@ -26,25 +26,25 @@ def sentiment_analysis_training_pipeline(source):
         df = sentiment_analysis.ingest_data(source)
 
         # Prepare Data
-        df = sentiment_analysis.sentiment_prepare_data(df)
+        df = sentiment_analysis.prepare_data(df)
 
         # Perform Test-Train Split
-        df_train, df_test = sentiment_analysis.sentiment_train_test_split(df)
+        df_train, df_test = sentiment_analysis.train_test_split(df)
 
         # Perform tf-idf vectorization
-        x_train, x_test, y_train, y_test, vectorizer = sentiment_analysis.sentiment_vectorization(df_train, df_test)
+        x_train, x_test, y_train, y_test, vectorizer = sentiment_analysis.vectorization(df_train, df_test)
 
         # Generate model
-        model = sentiment_analysis.sentiment_train(x_train, x_test, y_train, y_test)
+        model = sentiment_analysis.train(x_train, x_test, y_train, y_test)
 
         # Store metrics
-        sentiment_analysis.sentiment_generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
+        sentiment_analysis.generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
 
         # Save model
-        sentiment_analysis.sentiment_save_model(model)
+        sentiment_analysis.save_model(model)
 
         # Save vectorizer
-        sentiment_analysis.sentiment_save_vectorizer(vectorizer)
+        sentiment_analysis.save_vectorizer(vectorizer)
 
         print("Sentiment Analysis Pipeline execution complete.")
     except Exception as e:
@@ -53,4 +53,4 @@ def sentiment_analysis_training_pipeline(source):
 
 
 def sentiment_analysis_inference_pipeline(text):
-    return sentiment_analysis.sentiment_predict(text)
+    return sentiment_analysis.predict(text)

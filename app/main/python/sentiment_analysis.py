@@ -56,17 +56,17 @@ def ingest_data(source):
 #############################
 # Prepare Data
 #############################
-def sentiment_prepare_data(df):
+def prepare_data(df):
     print("Preparing data...")
-    df = sentiment_feature_extraction(df)
-    df = sentiment_feature_encoding(df)
+    df = feature_extraction(df)
+    df = feature_encoding(df)
     return df
 
 
 #############################
 # Perform Feature Encoding
 #############################
-def sentiment_feature_encoding(df):
+def feature_encoding(df):
     print("Performing feature encoding...")
     target_map = {'positive': 1, 'negative': 0, 'neutral': 2}
     df['target'] = df['airline_sentiment'].map(target_map)
@@ -76,7 +76,7 @@ def sentiment_feature_encoding(df):
 #############################
 # Perform Feature Extraction
 #############################
-def sentiment_feature_extraction(df):
+def feature_extraction(df):
     print("Performing feature extraction...")
     return df[['airline_sentiment', 'text']].copy()
 
@@ -84,7 +84,7 @@ def sentiment_feature_extraction(df):
 #############################
 # Apply Train-Test Split
 #############################
-def sentiment_train_test_split(df):
+def train_test_split(df):
     print("Performing train/test data split...")
     df_train, df_test = train_test_split(df)
     return df_train, df_test
@@ -93,7 +93,7 @@ def sentiment_train_test_split(df):
 #############################
 # Apply Data Vectorization
 #############################
-def sentiment_vectorization(df_train, df_test):
+def vectorization(df_train, df_test):
     print("Preparing data vectorization (tf-idf encoding)...")
     vectorizer = TfidfVectorizer(max_features=2000)
     x_train = vectorizer.fit_transform(df_train['text'])
@@ -106,18 +106,18 @@ def sentiment_vectorization(df_train, df_test):
 ########################
 # Train
 ########################
-def sentiment_train(x_train, x_test, y_train, y_test):
+def train(x_train, x_test, y_train, y_test):
     print("Training data...")
     model = LogisticRegression(max_iter=500)  # TODO: try different values of C, penalty
     model.fit(x_train, y_train)
-    sentiment_generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
+    generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
     return model
 
 
 ########################
 # Generate Metrics
 ########################
-def sentiment_generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
+def generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
     print("Generating metrics...")
     train_acc = model.score(x_train, y_train)
     test_acc = model.score(x_test, y_test)
@@ -134,7 +134,7 @@ def sentiment_generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
 ########################
 # Save Model
 ########################
-def sentiment_save_model(model):
+def save_model(model):
     print("Saving model...")
     feature_store.save_artifact(model, 'sentiment_analysis_model')
 
@@ -142,7 +142,7 @@ def sentiment_save_model(model):
 ########################
 # Save Vectorizer
 ########################
-def sentiment_save_vectorizer(vectorizer):
+def save_vectorizer(vectorizer):
     print("Saving vectorizer...")
     feature_store.save_artifact(vectorizer, 'sentiment_analysis_vectorizer')
 
@@ -150,7 +150,7 @@ def sentiment_save_vectorizer(vectorizer):
 ########################
 # Predict Sentiment
 ########################
-def sentiment_predict(text):
+def predict(text):
     print("Predicting sentiment...")
     sample = pd.Series(text)
     vectorizer = feature_store.load_artifact('sentiment_analysis_vectorizer')
