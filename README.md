@@ -6,8 +6,9 @@ NOTE:
 
 #### Contents
 1. [Prepare environment](#prepare-env)
-2. [Deploy Postgres Instance](#deploy-anomaly-postgres)
-3. [Run Methods](#run-methods)
+2. [Install Streamlit](#install-streamlit)
+3. [Deploy Postgres Instance](#deploy-anomaly-postgres)
+4. [Run Methods](#run-methods)
 
 #### Prepare environment <a name="prepare-env"/>
 * Set up namespace and secrets:
@@ -38,6 +39,17 @@ do kubectl delete validatingwebhookconfiguration ${i} > /dev/null 2>&1; done; \
 for i in $(kubectl get crd | grep postgres); do kubectl delete crd ${i} > /dev/null 2>&1; done; \
 helm install postgres resources/postgres/operatorv1.7.1 -f resources/postgres/overrides.yaml \
     --namespace default --wait; kubectl apply -f resources/postgres/operatorv1.7.1/crds/
+```
+
+#### Install Streamlit <a name="prepare-env"/>
+* Install Streamlit:
+```
+python -m ensurepip --upgrade #on mac
+sudo apt-get install python3-pip #on ubuntupip3 install pipenv
+xcode-select --install #on mac
+cd template/streamlit/example-app-download/
+pipenv shell
+pip install streamlit
 ```
 
 #### Deploy Postgres Instance <a name="deploy-anomaly-postgres"/>

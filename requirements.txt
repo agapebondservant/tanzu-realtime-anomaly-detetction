@@ -7,3 +7,6 @@ python-dotenv
 pandas
 wheel
 scikit-learn
+nbconvert
+seaborn
+traitlets

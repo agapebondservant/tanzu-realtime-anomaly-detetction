@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+streamlit = "*"
+db-dtypes = "*"
+google-auth = "*"
+google-cloud-storage = "*"
+google-cloud = "*"
+google-cloud-bigquery = "*"
+pandas = "*"
+datetime = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
