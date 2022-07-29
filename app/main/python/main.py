@@ -13,7 +13,6 @@ from app.main.python import sentiment_analysis, anomaly_detection
 # Set-up
 ########################
 warnings.filterwarnings('ignore')
-rcParams['figure.figsize'] = (15, 6)
 
 
 #############################
@@ -61,7 +60,7 @@ def sentiment_analysis_inference_pipeline(text):
         traceback.print_exc()
 
 
-def anomaly_detection_training_pipeline(source, timeframe):
+def anomaly_detection_training_pipeline(source, sample_frequency, reporting_timeframe):
     logging.info("Starting Anomaly Detection Pipeline.......................")
 
     # Input features
@@ -75,7 +74,7 @@ def anomaly_detection_training_pipeline(source, timeframe):
         anomaly_detection.initialize_input_features(data_freq, sliding_window_size, total_forecast_window)
 
         # Perform feature extraction
-        buffers = anomaly_detection.extract_features(df, sample_frequency=timeframe)
+        buffers = anomaly_detection.extract_features(df, sample_frequency=sample_frequency)
 
         # Save EDA artifacts
         anomaly_detection.generate_and_save_eda_metrics(df)
@@ -93,7 +92,7 @@ def anomaly_detection_training_pipeline(source, timeframe):
         fig = anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
                                                               buffers['actual_positive_sentiments'],
                                                               buffers['actual_negative_sentiments'],
-                                                              timeframe=timeframe)
+                                                              timeframe=reporting_timeframe)
 
         return fig
 

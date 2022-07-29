@@ -47,6 +47,7 @@ helm install postgres resources/postgres/operatorv1.7.1 -f resources/postgres/ov
 python -m ensurepip --upgrade #on mac
 sudo apt-get install python3-pip #on ubuntupip3 install pipenv
 xcode-select --install #on mac
+softwareupdate --install -a #on mac
 ```
 
 #### Deploy Postgres Instance <a name="deploy-anomaly-postgres"/>

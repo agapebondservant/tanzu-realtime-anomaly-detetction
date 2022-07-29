@@ -16,7 +16,6 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quart
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tools.eval_measures import mse, rmse, meanabs, aic, bic
 from pmdarima import auto_arima
-from prophet import Prophet
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler

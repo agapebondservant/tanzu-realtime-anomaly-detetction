@@ -6,12 +6,13 @@ import warnings
 import traceback
 from pylab import rcParams
 from app.main.python import main
+import mpld3
+import streamlit.components.v1 as components
 
 ########################
 # Set-up
 ########################
 warnings.filterwarnings('ignore')
-rcParams['figure.figsize'] = (15, 6)
 csv_data_source = 'data/airlinetweets.csv'
 
 
@@ -21,8 +22,26 @@ csv_data_source = 'data/airlinetweets.csv'
 def show_trends():
     try:
         logging.info('Showing trends in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline(csv_data_source, 'day')
-        st.pylot(fig)
+        fig = main.anomaly_detection_training_pipeline(csv_data_source, '10min', 'day')
+        st.pyplot(fig)
+        # fig_html = mpld3.fig_to_html(fig)
+        # components.html(fig_html, height=600)
+        logging.info('Trend dashboard rendered.')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
+
+
+#############################
+# Render Dashboard
+#############################
+def render_dashboard():
+    try:
+        logging.info('Start rendering dashboard widgets...')
+        show_trends()
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
+
+render_dashboard()

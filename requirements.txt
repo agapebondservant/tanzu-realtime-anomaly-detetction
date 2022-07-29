@@ -13,3 +13,4 @@ traitlets
 scipy
 plotly
 watchdog
+mpld3

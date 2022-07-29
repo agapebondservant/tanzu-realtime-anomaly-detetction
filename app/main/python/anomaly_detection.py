@@ -16,7 +16,6 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quart
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tools.eval_measures import mse, rmse, meanabs, aic, bic
 from pmdarima import auto_arima
-from prophet import Prophet
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler
@@ -106,12 +105,11 @@ def standardize_data(standard_scaler, actual_sentiments):
 #######################################
 def save_data_buffers(df, sample_frequency):
     logging.info("Generate and save data buffers to use for stream processing...")
-    timelags = get_time_lags(sample_frequency)
     data_buffers = {
         'total_sentiments': df,
-        'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{timelags}min').count(),
-        'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{timelags}min').count(),
-        'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{timelags}min').count()
+        'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{sample_frequency}').count(),
+        'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{sample_frequency}').count(),
+        'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{sample_frequency}').count()
     }
     feature_store.save_artifact(data_buffers, 'anomaly_detection_buffers')
     return data_buffers
@@ -150,18 +148,16 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 
 #######################################
 # Plot Positive/Negative Trends
-#######################################
+#####################################
 def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, actual_negative_sentiments,
                                   timeframe='day'):
     logging.info("Plotting positive/negative trends...")
     start_date, end_date = total_sentiments['sentiment'].index.max(), total_sentiments['sentiment'].index.max() - timedelta(
-        get_time_lags(timeframe))
+        hours= get_time_lags(timeframe))
 
-    fig, ax = plt.subplots(figsize=(15, 6))
+    fig, ax = plt.subplots(figsize=(12, 5))
 
-    fig.suptitle(
-        f"Airline Sentiments Between {datetime.strftime(start_date, '%m/%d/%Y')} and {datetime.strftime(end_date, '%m/%d/%Y')}",
-        fontsize=16)
+    fig.suptitle(f"Trends over the past {timeframe}")
     ax.set_xlim([start_date, end_date])
     ax.plot(actual_positive_sentiments['sentiment'],
             label="Positive Tweets", color="blue")
@@ -269,7 +265,8 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, sta
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
     # Plot curves
-    fig, ax = plt.subplots(figsize=(15, 6))
+    fig, ax = plt.subplots(figsize=(28, 15))
+    fig, ax = plt.subplots()
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, color='orange', label=f"ARIMA {stepwise_fit.order} Predictions")
@@ -286,7 +283,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, sta
 # Generate ARIMA Predictions
 #######################################
 def generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negative_sentiments,
-                               predictions=pd.Series([])):
+                               predictions=pd.Series(dtype='float64')):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
     df = actual_negative_sentiments.iloc[:-int(sliding_window_size)]
