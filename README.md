@@ -47,9 +47,6 @@ helm install postgres resources/postgres/operatorv1.7.1 -f resources/postgres/ov
 python -m ensurepip --upgrade #on mac
 sudo apt-get install python3-pip #on ubuntupip3 install pipenv
 xcode-select --install #on mac
-cd template/streamlit/example-app-download/
-pipenv shell
-pip install streamlit
 ```
 
 #### Deploy Postgres Instance <a name="deploy-anomaly-postgres"/>
@@ -69,7 +66,19 @@ kubectl apply -f resources/postgres/postgres.yaml -n rt-analytics
 python -c "from app.main.python import main; print(main.sentiment_analysis_training_pipeline('data/airlinetweets.csv'))"
 ```
 
-* Run anomaly detection pipeline:
+* Run sentiment analysis inference pipeline:
+```
+python -c "from app.main.python import main; print(main.sentiment_analysis_inference_pipeline('data/airlinetweets.csv'))"
+```
+
+* Run anomaly detection training pipeline:
 ```
 python -c "from app.main.python import main; print(main.anomaly_detection_training_pipeline('data/airlinetweets.csv', 'day'))"
+```
+
+* Launch dashboard:
+```
+pipenv install
+pipenv shell
+python -m streamlit run app/main/python/dashboard.py
 ```

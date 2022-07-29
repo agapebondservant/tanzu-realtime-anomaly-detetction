@@ -3,6 +3,7 @@
 ########################
 import pandas as pd
 import numpy as np
+import logging
 import warnings
 import traceback
 from pylab import rcParams
@@ -19,7 +20,7 @@ rcParams['figure.figsize'] = (15, 6)
 # Sentiment Analysis Pipeline
 #############################
 def sentiment_analysis_training_pipeline(source):
-    print("Starting Sentiment Analysis Pipeline.......................")
+    logging.info("Starting Sentiment Analysis Pipeline.......................")
 
     try:
         # Ingest Data
@@ -46,18 +47,22 @@ def sentiment_analysis_training_pipeline(source):
         # Save vectorizer
         sentiment_analysis.save_vectorizer(vectorizer)
 
-        print("Sentiment Analysis Pipeline execution complete.")
+        logging.info("Sentiment Analysis Pipeline execution complete.")
     except Exception as e:
-        print('Could not complete execution - error occurred: ')
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
 
 
 def sentiment_analysis_inference_pipeline(text):
-    return sentiment_analysis.predict(text)
+    try:
+        return sentiment_analysis.predict(text)
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
 
 
 def anomaly_detection_training_pipeline(source, timeframe):
-    print("Starting Anomaly Detection Pipeline.......................")
+    logging.info("Starting Anomaly Detection Pipeline.......................")
 
     # Input features
     data_freq, sliding_window_size, total_forecast_window = 10, 144, 1440
@@ -81,8 +86,8 @@ def anomaly_detection_training_pipeline(source, timeframe):
                                                                  sliding_window_size)
 
         # Check for stationarity
-        print(f'Stationarity : {anomaly_detection.check_stationarity(adf_results)}')
-        print(f'P-value : {adf_results[1]}')
+        logging.info(f'Stationarity : {anomaly_detection.check_stationarity(adf_results)}')
+        logging.info(f'P-value : {adf_results[1]}')
 
         # Plot positive/negative trends
         fig = anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
@@ -93,5 +98,5 @@ def anomaly_detection_training_pipeline(source, timeframe):
         return fig
 
     except Exception as e:
-        print('Could not complete execution - error occurred: ')
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import logging
 import warnings
 import traceback
 from pylab import rcParams
@@ -19,9 +20,9 @@ csv_data_source = 'data/airlinetweets.csv'
 #############################
 def show_trends():
     try:
-        print('Showing trends in Dashboard...')
+        logging.info('Showing trends in Dashboard...')
         fig = main.anomaly_detection_training_pipeline(csv_data_source, 'day')
         st.pylot(fig)
     except Exception as e:
-        print('Could not complete execution - error occurred: ')
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

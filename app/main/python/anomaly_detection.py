@@ -3,6 +3,7 @@
 ########################
 import pandas as pd
 import numpy as np
+import logging
 from statsmodels.tsa.seasonal import seasonal_decompose
 from pylab import rcParams
 from datetime import datetime
@@ -46,7 +47,7 @@ from app.main.python import feature_store
 # Ingest Data
 ########################
 def ingest_data(source):
-    print('Ingest data...')
+    logging.info('Ingest data...')
     return pd.read_csv(source, parse_dates=['tweet_created'], index_col=['tweet_created'])
 
 
@@ -54,7 +55,7 @@ def ingest_data(source):
 # Set Global Values
 #######################################
 def initialize_input_features(data_freq=10, sliding_window_size=144, total_forecast_window=1440):
-    print("Initializing input features...")
+    logging.info("Initializing input features...")
     input_features = {
         'data_freq': data_freq,
         'sliding_window_size': sliding_window_size,
@@ -68,7 +69,7 @@ def initialize_input_features(data_freq=10, sliding_window_size=144, total_forec
 # Generate and Save EDA Artifacts
 #######################################
 def generate_and_save_eda_metrics(df):
-    print("Generating and saving EDA metrics...")
+    logging.info("Generating and saving EDA metrics...")
     data_summary = df.groupby('airline_sentiment').resample('1d').count()[['tweet_id']]
     data_summary = data_summary.unstack(0)
     data_summary['total'] = data_summary.sum(axis=1)
@@ -80,7 +81,7 @@ def generate_and_save_eda_metrics(df):
 # Perform feature extraction via resampling
 #######################################
 def extract_features(df, sample_frequency):
-    print("Performing feature extraction...")
+    logging.info("Performing feature extraction...")
     scalar = generate_scalars()[1]
 
     df['sentiment'] = df['airline_sentiment'].map({'positive': 1, 'neutral': 0, 'negative': -1})
@@ -94,7 +95,7 @@ def extract_features(df, sample_frequency):
 # Perform Data Standardization
 #######################################
 def standardize_data(standard_scaler, actual_sentiments):
-    print("Performing data standardization...")
+    logging.info("Performing data standardization...")
     actual_sentiments[['sentiment_normalized']] = \
         standard_scaler.fit_transform(actual_sentiments[['sentiment']])
     return actual_sentiments
@@ -104,7 +105,7 @@ def standardize_data(standard_scaler, actual_sentiments):
 # Initialize Data Buffers
 #######################################
 def save_data_buffers(df, sample_frequency):
-    print("Generate and save data buffers to use for stream processing...")
+    logging.info("Generate and save data buffers to use for stream processing...")
     timelags = get_time_lags(sample_frequency)
     data_buffers = {
         'total_sentiments': df,
@@ -120,7 +121,7 @@ def save_data_buffers(df, sample_frequency):
 # Generate and Save ADF Results
 #######################################
 def generate_and_save_adf_results(actual_negative_sentiments):
-    print("Generate and save Dickey-Fuller test results...")
+    logging.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
     feature_store.save_artifact(adfuller_results, 'adf_results')
     return adfuller_results
@@ -130,7 +131,7 @@ def generate_and_save_adf_results(actual_negative_sentiments):
 # Check for stationarity
 #######################################
 def check_stationarity(adfuller_results):
-    print("Check for stationarity...")
+    logging.info("Check for stationarity...")
     return adfuller_results[1] < 0.05
 
 
@@ -138,7 +139,7 @@ def check_stationarity(adfuller_results):
 # Generate and Save Stationary Results
 #######################################
 def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_window_size):
-    print("Save stationarity plot results...")
+    logging.info("Save stationarity plot results...")
     plot_acf(actual_negative_sentiments['sentiment'], lags=20)
     plt.savefig("anomaly_acf.png", bbox_inches='tight')
     plot_pacf(actual_negative_sentiments['sentiment_normalized'])
@@ -152,7 +153,7 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 #######################################
 def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, actual_negative_sentiments,
                                   timeframe='day'):
-    print("Plotting positive/negative trends...")
+    logging.info("Plotting positive/negative trends...")
     start_date, end_date = total_sentiments['sentiment'].index.max(), total_sentiments['sentiment'].index.max() - timedelta(
         get_time_lags(timeframe))
 
@@ -180,7 +181,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 # Perform Auto ARIMA Search
 #######################################
 def run_auto_arima(actual_negative_sentiments):
-    print("Running auto_arima...")
+    logging.info("Running auto_arima...")
     stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
                               max_q=6,
                               seasonal=False, trace=True)
@@ -192,7 +193,7 @@ def run_auto_arima(actual_negative_sentiments):
 # Build ARIMA Model
 #######################################
 def build_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentiments):
-    print(f"Build ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
+    logging.info(f"Build ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:-int(sliding_window_size)]
 
     model_arima_order = stepwise_fit.order
@@ -212,7 +213,7 @@ def build_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentime
 # Test ARIMA Model
 #######################################
 def test_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentiments):
-    print('Testing ARIMA model...')
+    logging.info('Testing ARIMA model...')
 
     return generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negative_sentiments, pd.Series([]))
 
@@ -221,7 +222,7 @@ def test_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentimen
 # Detect Anomalies
 #######################################
 def detect_anomalies(predictions, sliding_window_size, actual_negative_sentiments):
-    print('Detecting anomalies...')
+    logging.info('Detecting anomalies...')
 
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
@@ -252,7 +253,7 @@ def detect_anomalies(predictions, sliding_window_size, actual_negative_sentiment
 #######################################
 def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, standard_scalar, stepwise_fit,
                               timeframe='hour'):
-    print("Plot trend with anomalies...")
+    logging.info("Plot trend with anomalies...")
     start_date, end_date = \
         model_arima_results_full.actualvalues.index[-1] - timedelta(hours=get_time_lags(timeframe)), \
         model_arima_results_full.actualvalues.index[-1]
@@ -286,7 +287,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, sta
 #######################################
 def generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negative_sentiments,
                                predictions=pd.Series([])):
-    print("Generate ARIMA predictions...")
+    logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
     df = actual_negative_sentiments.iloc[:-int(sliding_window_size)]
 
@@ -308,7 +309,7 @@ def generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negativ
         # Compute the start & end indexes
         end_idx = end_idx + num_lags
         start_idx = end_idx - sliding_window_size
-        print(f'DEBUG: {start_idx} {end_idx} {end_idx - start_idx} {len(df)} {len(actual_negative_sentiments)}')
+        logging.info(f'DEBUG: {start_idx} {end_idx} {end_idx - start_idx} {len(df)} {len(actual_negative_sentiments)}')
         tmp_data = actual_negative_sentiments[int(start_idx):int(end_idx)]
         tmp_arima = ARIMA(tmp_data['sentiment_normalized'], order=stepwise_fit.order)
         tmp_model_arima_results = tmp_arima.fit()
@@ -322,7 +323,7 @@ def generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negativ
 # Generate Scalers
 #######################################
 def generate_scalars():
-    print("Generate Standard Scalar references...")
+    logging.info("Generate Standard Scalar references...")
     standard_scaler_positive_sentiment, standard_scaler_negative_sentiment, standard_scaler_neutral_sentiment = \
         StandardScaler(), StandardScaler(), StandardScaler()
     feature_store.save_artifact(standard_scaler_positive_sentiment, 'anomaly_positive_standard_scalar')
@@ -335,7 +336,7 @@ def generate_scalars():
 # Perform Inverse Standardization
 #######################################
 def inverse_standardize_data(standard_scaler, transformed_values):
-    print("Perform inverse standardization of input data...")
+    logging.info("Perform inverse standardization of input data...")
     inverse_transformed_values = pd.Series(
         standard_scaler.inverse_transform(transformed_values),
         index=transformed_values.index)
@@ -345,6 +346,6 @@ def inverse_standardize_data(standard_scaler, transformed_values):
 # Convert timeframe flag to number of time lags
 #######################################
 def get_time_lags(timeframe='day'):
-    print(f"Get time lag for {timeframe}...")
+    logging.info(f"Get time lag for {timeframe}...")
     time_lags = {'hour': 1, 'day': 24, 'week': 168}
     return time_lags[timeframe]

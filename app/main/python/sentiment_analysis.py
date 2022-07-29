@@ -3,6 +3,7 @@
 ########################
 import pandas as pd
 import numpy as np
+import logging
 from statsmodels.tsa.seasonal import seasonal_decompose
 from pylab import rcParams
 from datetime import datetime
@@ -40,7 +41,7 @@ from app.main.python import feature_store
 # Ingest Data
 ########################
 def ingest_data(source):
-    print('Ingest data...')
+    logging.info('Ingest data...')
     return pd.read_csv(source, index_col="tweet_created")
 
 
@@ -57,7 +58,7 @@ def ingest_data(source):
 # Prepare Data
 #############################
 def prepare_data(df):
-    print("Preparing data...")
+    logging.info("Preparing data...")
     df = feature_extraction(df)
     df = feature_encoding(df)
     return df
@@ -67,7 +68,7 @@ def prepare_data(df):
 # Perform Feature Encoding
 #############################
 def feature_encoding(df):
-    print("Performing feature encoding...")
+    logging.info("Performing feature encoding...")
     target_map = {'positive': 1, 'negative': 0, 'neutral': 2}
     df['target'] = df['airline_sentiment'].map(target_map)
     return df
@@ -77,7 +78,7 @@ def feature_encoding(df):
 # Perform Feature Extraction
 #############################
 def feature_extraction(df):
-    print("Performing feature extraction...")
+    logging.info("Performing feature extraction...")
     return df[['airline_sentiment', 'text']].copy()
 
 
@@ -85,7 +86,7 @@ def feature_extraction(df):
 # Apply Train-Test Split
 #############################
 def train_test_split(df):
-    print("Performing train/test data split...")
+    logging.info("Performing train/test data split...")
     df_train, df_test = train_test_split(df)
     return df_train, df_test
 
@@ -94,7 +95,7 @@ def train_test_split(df):
 # Apply Data Vectorization
 #############################
 def vectorization(df_train, df_test):
-    print("Preparing data vectorization (tf-idf encoding)...")
+    logging.info("Preparing data vectorization (tf-idf encoding)...")
     vectorizer = TfidfVectorizer(max_features=2000)
     x_train = vectorizer.fit_transform(df_train['text'])
     x_test = vectorizer.transform(df_test['text'])
@@ -107,7 +108,7 @@ def vectorization(df_train, df_test):
 # Train
 ########################
 def train(x_train, x_test, y_train, y_test):
-    print("Training data...")
+    logging.info("Training data...")
     model = LogisticRegression(max_iter=500)  # TODO: try different values of C, penalty
     model.fit(x_train, y_train)
     generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
@@ -118,13 +119,13 @@ def train(x_train, x_test, y_train, y_test):
 # Generate Metrics
 ########################
 def generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
-    print("Generating metrics...")
+    logging.info("Generating metrics...")
     train_acc = model.score(x_train, y_train)
     test_acc = model.score(x_test, y_test)
     train_roc_auc = roc_auc_score(y_train, model.predict_proba(x_train), multi_class='ovo')
     test_roc_auc = roc_auc_score(y_test, model.predict_proba(x_test), multi_class='ovo')
     # TODO: Use MLFlow
-    print("Saving metrics...")
+    logging.info("Saving metrics...")
     feature_store.save_artifact({'sentiment_train_acc': train_acc,
                                  'sentiment_test_acc': test_acc,
                                  'sentiment_train_roc_auc': train_roc_auc,
@@ -135,7 +136,7 @@ def generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
 # Save Model
 ########################
 def save_model(model):
-    print("Saving model...")
+    logging.info("Saving model...")
     feature_store.save_artifact(model, 'sentiment_analysis_model')
 
 
@@ -143,7 +144,7 @@ def save_model(model):
 # Save Vectorizer
 ########################
 def save_vectorizer(vectorizer):
-    print("Saving vectorizer...")
+    logging.info("Saving vectorizer...")
     feature_store.save_artifact(vectorizer, 'sentiment_analysis_vectorizer')
 
 
@@ -151,7 +152,7 @@ def save_vectorizer(vectorizer):
 # Predict Sentiment
 ########################
 def predict(text):
-    print("Predicting sentiment...")
+    logging.info("Predicting sentiment...")
     sample = pd.Series(text)
     vectorizer = feature_store.load_artifact('sentiment_analysis_vectorizer')
     model = feature_store.load_artifact('sentiment_analysis_model')
