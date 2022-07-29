@@ -1,8 +1,10 @@
+
 import joblib
 
 
 ########################
 # Save artifact
+# TODO: Use S3-compatible store
 ########################
 def save_artifact(artifact, artifact_name):
     artifact_handle = open(f"artifacts/{artifact_name}.pkl", "wb")
@@ -12,6 +14,7 @@ def save_artifact(artifact, artifact_name):
 
 ########################
 # Load artifact
+# TODO: Use S3-compatible store
 ########################
 def load_artifact(artifact_name):
     artifact_handle = open(f"artifacts/{artifact_name}.pkl", "rb")

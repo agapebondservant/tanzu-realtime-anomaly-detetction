@@ -6,7 +6,7 @@ import numpy as np
 import warnings
 import traceback
 from pylab import rcParams
-from app.main.python import sentiment_analysis
+from app.main.python import sentiment_analysis, anomaly_detection
 
 ########################
 # Set-up
@@ -54,3 +54,41 @@ def sentiment_analysis_training_pipeline(source):
 
 def sentiment_analysis_inference_pipeline(text):
     return sentiment_analysis.predict(text)
+
+
+def anomaly_detection_training_pipeline(source, timeframe):
+    print("Starting Anomaly Detection Pipeline.......................")
+
+    # Input features
+    data_freq, sliding_window_size, total_forecast_window = 10, 144, 1440
+
+    try:
+        # Ingest Data
+        df = anomaly_detection.ingest_data(source)
+
+        # Store input values
+        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, total_forecast_window)
+
+        # Perform feature extraction
+        buffers = anomaly_detection.extract_features(df, sample_frequency=timeframe)
+
+        # Save EDA artifacts
+        anomaly_detection.generate_and_save_eda_metrics(df)
+
+        # Perform ADF test
+        adf_results = anomaly_detection.generate_and_save_adf_results(buffers['actual_negative_sentiments'])
+        anomaly_detection.generate_and_save_stationarity_results(buffers['actual_negative_sentiments'],
+                                                                 sliding_window_size)
+
+        # Check for stationarity
+        print(f'Stationarity : {anomaly_detection.check_stationarity(adf_results)}')
+
+        # Plot positive/negative trends
+        anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
+                                                        buffers['actual_positive_sentiments'],
+                                                        buffers['actual_negative_sentiments'],
+                                                        timeframe=timeframe)
+
+    except Exception as e:
+        print('Could not complete execution - error occurred: ')
+        traceback.print_exc()
