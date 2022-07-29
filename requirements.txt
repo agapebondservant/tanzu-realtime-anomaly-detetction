@@ -11,3 +11,5 @@ nbconvert
 seaborn
 traitlets
 scipy
+plotly
+watchdog

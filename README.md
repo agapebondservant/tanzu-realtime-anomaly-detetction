@@ -80,5 +80,5 @@ python -c "from app.main.python import main; print(main.anomaly_detection_traini
 ```
 pipenv install
 pipenv shell
-python -m streamlit run app/main/python/dashboard.py
+python -m streamlit run app/main/python/dashboard.py --logger.level=info
 ```
