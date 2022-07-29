@@ -82,12 +82,15 @@ def anomaly_detection_training_pipeline(source, timeframe):
 
         # Check for stationarity
         print(f'Stationarity : {anomaly_detection.check_stationarity(adf_results)}')
+        print(f'P-value : {adf_results[1]}')
 
         # Plot positive/negative trends
-        anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
-                                                        buffers['actual_positive_sentiments'],
-                                                        buffers['actual_negative_sentiments'],
-                                                        timeframe=timeframe)
+        fig = anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
+                                                              buffers['actual_positive_sentiments'],
+                                                              buffers['actual_negative_sentiments'],
+                                                              timeframe=timeframe)
+
+        return fig
 
     except Exception as e:
         print('Could not complete execution - error occurred: ')

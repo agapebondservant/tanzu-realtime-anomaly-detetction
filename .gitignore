@@ -2,3 +2,6 @@
 .DS_Store
 .env
 tmp/
+*.png
+artifacts/*
+app/main/python/__pycache__/*.*

@@ -64,8 +64,12 @@ kubectl apply -f resources/postgres/postgres.yaml -n rt-analytics
 ```
 
 #### Run Methods
-* Run methods in a pipeline:
-
+* Run sentiment analysis training pipeline:
 ```
-python -c "from app.main.python import airline_analytics; airline_analytics.ingest_data('test')"
+python -c "from app.main.python import main; print(main.sentiment_analysis_training_pipeline('data/airlinetweets.csv'))"
+```
+
+* Run anomaly detection pipeline:
+```
+python -c "from app.main.python import main; print(main.anomaly_detection_training_pipeline('data/airlinetweets.csv', 'day'))"
 ```

@@ -85,6 +85,8 @@ def extract_features(df, sample_frequency):
 
     df['sentiment'] = df['airline_sentiment'].map({'positive': 1, 'neutral': 0, 'negative': -1})
 
+    df = standardize_data(scalar, df)
+
     return save_data_buffers(df, sample_frequency)
 
 
@@ -103,11 +105,12 @@ def standardize_data(standard_scaler, actual_sentiments):
 #######################################
 def save_data_buffers(df, sample_frequency):
     print("Generate and save data buffers to use for stream processing...")
+    timelags = get_time_lags(sample_frequency)
     data_buffers = {
         'total_sentiments': df,
-        'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{sample_frequency}min').count(),
-        'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{sample_frequency}min').count(),
-        'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{sample_frequency}min').count()
+        'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{timelags}min').count(),
+        'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{timelags}min').count(),
+        'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{timelags}min').count()
     }
     feature_store.save_artifact(data_buffers, 'anomaly_detection_buffers')
     return data_buffers
@@ -150,7 +153,7 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, actual_negative_sentiments,
                                   timeframe='day'):
     print("Plotting positive/negative trends...")
-    start_date, end_date = ['sentiment'].index.max(), total_sentiments['sentiment'].index.max() - timedelta(
+    start_date, end_date = total_sentiments['sentiment'].index.max(), total_sentiments['sentiment'].index.max() - timedelta(
         get_time_lags(timeframe))
 
     fig, ax = plt.subplots(figsize=(15, 6))
@@ -169,6 +172,8 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
               colors='orange')
     ax.set_ylabel('Number of tweets', fontsize=14)
     ax.legend()
+
+    return fig
 
 
 #######################################
