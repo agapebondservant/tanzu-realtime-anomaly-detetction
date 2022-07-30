@@ -157,7 +157,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
-    fig.suptitle(f"Trends over the past {timeframe}")
+    fig.suptitle(f"Trending over the past {timeframe}")
     ax.set_xlim([start_date, end_date])
     ax.plot(actual_positive_sentiments['sentiment'],
             label="Positive Tweets", color="blue")

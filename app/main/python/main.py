@@ -14,12 +14,25 @@ from app.main.python import sentiment_analysis, anomaly_detection
 ########################
 warnings.filterwarnings('ignore')
 
+#############################
+# Sentiment Analysis Inference Pipeline
+#############################
+
+
+def sentiment_analysis_inference_pipeline(text):
+    logging.info("Starting Sentiment Analysis Inference Pipeline.......................")
+    try:
+        sentiment_analysis.predict(text)
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
 
 #############################
-# Sentiment Analysis Pipeline
+# Sentiment Analysis Training Pipeline
 #############################
 def sentiment_analysis_training_pipeline(source):
-    logging.info("Starting Sentiment Analysis Pipeline.......................")
+    logging.info("Starting Sentiment Analysis Training Pipeline.......................")
 
     try:
         # Ingest Data

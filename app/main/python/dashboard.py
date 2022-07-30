@@ -5,43 +5,51 @@ import logging
 import warnings
 import traceback
 from pylab import rcParams
-from app.main.python import main
+from app.main.python import dashboard_widgets
 import mpld3
 import streamlit.components.v1 as components
 
-########################
-# Set-up
-########################
-warnings.filterwarnings('ignore')
-csv_data_source = 'data/airlinetweets.csv'
+
+def show_sentiment(newpost):
+    print(newpost)
 
 
-#############################
-# Show Trends
-#############################
-def show_trends():
-    try:
-        logging.info('Showing trends in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline(csv_data_source, '10min', 'day')
-        st.pyplot(fig)
-        # fig_html = mpld3.fig_to_html(fig)
-        # components.html(fig_html, height=600)
-        logging.info('Trend dashboard rendered.')
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+st.write("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nanum Gothic');
+html, body, [class*="css"]{
+   font-family: 'Nanum Gothic';
+}
+#tanzu-realtime-anomaly-detection-demo{
+   color: #6a6161;
+}
+</style>
+""", unsafe_allow_html=True)
 
+st.header('Tanzu Realtime Anomaly Detection Demo')
 
-#############################
-# Render Dashboard
-#############################
-def render_dashboard():
-    try:
-        logging.info('Start rendering dashboard widgets...')
-        show_trends()
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+st.text('Near-realtime showcase of sentiment-based anomaly detection using Tanzu RabbitMQ')
 
+tab1, tab2 = st.tabs(["Home", "Feedback"])
 
-render_dashboard()
+# Charts
+with tab1:
+    timeframe = st.selectbox(
+        'Select time period',
+        ('day', 'hour', 'week'))
+    dashboard_widgets.render_anomaly_detection_dashboard(timeframe)
+
+# Posts
+with tab2:
+    sentiment = 'neutral'
+    sentiment_mappings = {'positive': 'color:green', 'negative': 'color:red', 'neutral': 'visibility:hidden'}
+
+    st.write("Enter your thoughts:")
+    post = st.text_input('Feedback', '''''')
+    placeholder = st.empty()
+
+    if len(post) != 0:
+        sentiment = dashboard_widgets.show_sentiment(post)
+        placeholder.markdown(f"Sentiment:<br/><span style=font-size:1.6em;{sentiment_mappings[sentiment]}>{sentiment}</span>", unsafe_allow_html=True)
+
+    dashboard_widgets.render_sentiment_analysis_dashboard()

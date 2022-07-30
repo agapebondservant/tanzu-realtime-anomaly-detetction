@@ -32,7 +32,7 @@ from pylab import rcParams
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
-from sklearn.model_selection import train_test_split
+import sklearn.model_selection as model_selection
 from app.main.python import feature_store
 
 
@@ -86,7 +86,7 @@ def feature_extraction(df):
 #############################
 def train_test_split(df):
     logging.info("Performing train/test data split...")
-    df_train, df_test = train_test_split(df)
+    df_train, df_test = model_selection.train_test_split(df)
     return df_train, df_test
 
 
