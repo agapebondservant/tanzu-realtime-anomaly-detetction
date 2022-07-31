@@ -143,8 +143,13 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe):
                                                                       total_forecast_window,
                                                                       buffers['actual_negative_sentiments'])
 
-
         # Plot anomalies
+        fig = anomaly_detection.plot_trend_with_anomalies(model_arima_results_full,
+                                                          sliding_window_size,
+                                                          stepwise_fit,
+                                                          reporting_timeframe)
+
+        return fig
 
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)

@@ -30,14 +30,14 @@ st.header('Tanzu Realtime Anomaly Detection Demo')
 
 st.text('Near-realtime showcase of sentiment-based anomaly detection using Tanzu RabbitMQ')
 
-tab1, tab2 = st.tabs(["Home", "Feedback"])
+tab1, tab2, tab3 = st.tabs(["Home", "Feedback", "Anomalies"])
 
 # Charts
 with tab1:
     timeframe = st.selectbox(
         'Select time period',
         ('day', 'hour', 'week'))
-    dashboard_widgets.render_anomaly_detection_dashboard(timeframe)
+    dashboard_widgets.render_trends_dashboard(timeframe)
 
 # Posts
 with tab2:
@@ -53,3 +53,10 @@ with tab2:
         placeholder.markdown(f"Sentiment:<br/><span style=font-size:1.6em;{sentiment_mappings[sentiment]}>{sentiment}</span>", unsafe_allow_html=True)
 
     dashboard_widgets.render_sentiment_analysis_dashboard()
+
+# Anomalies
+with tab3:
+    timeframe2 = st.selectbox(
+        'Select a time period',
+        ('day', 'hour', 'week'))
+    dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)

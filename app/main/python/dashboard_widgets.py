@@ -28,6 +28,21 @@ def show_trends(timeframe):
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
 
+#############################
+# Show Anomalies
+#############################
+
+
+def show_anomalies(timeframe):
+    try:
+        logging.info('Showing anomalies in Dashboard...')
+        fig = main.anomaly_detection_training_pipeline('10min', timeframe)
+        st.pyplot(fig)
+        logging.info('Anomalies dashboard rendered.')
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
 
 #############################
 # Train Sentiment Analysis model
@@ -50,16 +65,27 @@ def show_sentiment(text):
 
 
 #############################
-# Render Anomaly Detection Dashboard
+# Render Anomaly Dashboard
 #############################
 def render_anomaly_detection_dashboard(timeframe):
     try:
-        logging.info('Start rendering dashboard widgets...')
-        show_trends(timeframe)
+        logging.info('Start rendering anomaly detection widgets...')
+        show_anomalies(timeframe)
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
 
+
+#############################
+# Render Trends Dashboard
+#############################
+def render_trends_dashboard(timeframe):
+    try:
+        logging.info('Start rendering trends dashboard widgets...')
+        show_trends(timeframe)
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
 
 #############################
 # Render Sentiment Analysis Dashboard

@@ -101,11 +101,8 @@ def prepare_data(df, sample_frequency):
 #######################################
 def extract_features(df, sample_frequency):
     logging.info("Performing feature extraction...")
-    scalar = generate_scalars()[1]
 
     df['sentiment'] = df['airline_sentiment'].map({'positive': 1, 'neutral': 0, 'negative': -1})
-
-    df = standardize_data(scalar, df)
 
     return save_data_buffers(df, sample_frequency)
 
@@ -113,11 +110,23 @@ def extract_features(df, sample_frequency):
 #######################################
 # Perform Data Standardization
 #######################################
-def standardize_data(standard_scaler, actual_sentiments):
+def standardize_data(buffers):
     logging.info("Performing data standardization...")
-    actual_sentiments[['sentiment_normalized']] = \
-        standard_scaler.fit_transform(actual_sentiments[['sentiment']])
-    return actual_sentiments
+
+    scalars = generate_scalars()
+
+    buffers['actual_positive_sentiments'][['sentiment_normalized']] = \
+        scalars[0].fit_transform(buffers['actual_positive_sentiments'][['sentiment']])
+    buffers['actual_negative_sentiments'][['sentiment_normalized']] = \
+        scalars[1].fit_transform(buffers['actual_negative_sentiments'][['sentiment']])
+    buffers['actual_negative_sentiments'][['sentiment_normalized']] = \
+        scalars[2].fit_transform(buffers['actual_negative_sentiments'][['sentiment']])
+
+    feature_store.save_artifact(scalars[0], 'anomaly_positive_standard_scalar')
+    feature_store.save_artifact(scalars[1], 'anomaly_negative_standard_scalar')
+    feature_store.save_artifact(scalars[2], 'anomaly_neutral_standard_scalar')
+
+    return buffers
 
 
 #######################################
@@ -125,12 +134,16 @@ def standardize_data(standard_scaler, actual_sentiments):
 #######################################
 def save_data_buffers(df, sample_frequency):
     logging.info("Generate and save data buffers to use for stream processing...")
+
     data_buffers = {
         'total_sentiments': df,
         'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{sample_frequency}').count(),
         'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{sample_frequency}').count(),
         'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{sample_frequency}').count()
     }
+
+    data_buffers = standardize_data(data_buffers)
+
     feature_store.save_artifact(data_buffers, 'anomaly_detection_buffers')
     return data_buffers
 
@@ -199,9 +212,13 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 #######################################
 def run_auto_arima(actual_negative_sentiments):
     logging.info("Running auto_arima...")
-    stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
-                              max_q=6,
-                              seasonal=False, trace=True)
+    stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
+
+    if stepwise_fit is None:
+        stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
+                                  max_q=6,
+                                  seasonal=False, trace=True)
+
     feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima')
     return stepwise_fit
 
@@ -261,26 +278,33 @@ def detect_anomalies(predictions, forecast_window_size, actual_negative_sentimen
 
     model_arima_results_full.loc[
         model_arima_results_full['actualvalues'] > model_arima_results_full['threshold'], 'anomaly'] = 1
-    model_arima_results_full['anomaly'].value_counts()
+    print(f"Anomaly distribution: \n{model_arima_results_full['anomaly'].value_counts()}")
     return model_arima_results_full
 
 
 #######################################
 # Plot Trend with Anomalies
 #######################################
-def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, standard_scalar, stepwise_fit,
+def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, stepwise_fit,
                               timeframe='hour'):
     logging.info("Plot trend with anomalies...")
     start_date, end_date = \
         model_arima_results_full.actualvalues.index[-1] - timedelta(hours=get_time_lags(timeframe)), \
         model_arima_results_full.actualvalues.index[-1]
 
-    fitted_values_actual = \
-        pd.Series(standard_scalar.inverse_transform(model_arima_results_full.actualvalues),
-                  index=model_arima_results_full.actualvalues.index)
-    fitted_values_predicted = pd.Series(
-        standard_scalar.inverse_transform(model_arima_results_full.fittedvalues),
-        index=model_arima_results_full.fittedvalues.index)
+    standard_scalar = get_negative_scalar()
+
+    #fitted_values_actual = \
+    #    pd.Series(standard_scalar.inverse_transform(model_arima_results_full.actualvalues),
+    #              index=model_arima_results_full.actualvalues.index)
+    #fitted_values_predicted = pd.Series(
+    #    standard_scalar.inverse_transform(model_arima_results_full.fittedvalues),
+    #    index=model_arima_results_full.fittedvalues.index)
+
+    fitted_values_actual = pd.Series(model_arima_results_full.actualvalues,
+                                     index=model_arima_results_full.actualvalues.index)
+    fitted_values_predicted = pd.Series(model_arima_results_full.fittedvalues,
+                                        index=model_arima_results_full.fittedvalues.index)
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
@@ -297,6 +321,8 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, sta
             )
     ax.legend()
     fig.suptitle(f"ARIMA Model (Test): \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
+
+    return fig
 
 
 #######################################
@@ -360,13 +386,23 @@ def generate_scalars():
 
 
 #######################################
+# Get Scalar
+#######################################
+def get_negative_scalar():
+    scalar = feature_store.load_artifact('anomaly_negative_standard_scalar')
+    return scalar
+
+#######################################
 # Perform Inverse Standardization
 #######################################
+
+
 def inverse_standardize_data(standard_scaler, transformed_values):
     logging.info("Perform inverse standardization of input data...")
     inverse_transformed_values = pd.Series(
         standard_scaler.inverse_transform(transformed_values),
         index=transformed_values.index)
+    return inverse_transformed_values
 
 
 #######################################
