@@ -7,12 +7,14 @@ import logging
 import warnings
 import traceback
 from pylab import rcParams
-from app.main.python import sentiment_analysis, anomaly_detection
+from datetime import datetime, timedelta
+from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 
 ########################
 # Set-up
 ########################
 warnings.filterwarnings('ignore')
+
 
 #############################
 # Sentiment Analysis Inference Pipeline
@@ -31,12 +33,12 @@ def sentiment_analysis_inference_pipeline(text):
 #############################
 # Sentiment Analysis Training Pipeline
 #############################
-def sentiment_analysis_training_pipeline(source):
+def sentiment_analysis_training_pipeline():
     logging.info("Starting Sentiment Analysis Training Pipeline.......................")
 
     try:
         # Ingest Data
-        df = sentiment_analysis.ingest_data(source)
+        df = sentiment_analysis.ingest_data()
 
         # Prepare Data
         df = sentiment_analysis.prepare_data(df)
@@ -73,21 +75,50 @@ def sentiment_analysis_inference_pipeline(text):
         traceback.print_exc()
 
 
-def anomaly_detection_training_pipeline(source, sample_frequency, reporting_timeframe):
-    logging.info("Starting Anomaly Detection Pipeline.......................")
+def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
+    logging.info("Starting Anomaly Detection Show Trends Pipeline.......................")
 
     # Input features
-    data_freq, sliding_window_size, total_forecast_window = 10, 144, 1440
+    data_freq, sliding_window_size, total_forecast_window, total_training_window, arima_order = 10, 144, 144, None, None
 
     try:
         # Ingest Data
-        df = anomaly_detection.ingest_data(source)
+        df = anomaly_detection.ingest_data()
 
         # Store input values
-        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, total_forecast_window)
+        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, total_training_window, arima_order)
 
-        # Perform feature extraction
-        buffers = anomaly_detection.extract_features(df, sample_frequency=sample_frequency)
+        # Prepare data by performing feature extraction
+        buffers = anomaly_detection.prepare_data(df, sample_frequency)
+
+        # Plot positive/negative trends
+        fig = anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
+                                                              buffers['actual_positive_sentiments'],
+                                                              buffers['actual_negative_sentiments'],
+                                                              timeframe=reporting_timeframe)
+
+        return fig
+
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
+
+def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe):
+    logging.info("Starting Anomaly Detection Training Pipeline.......................")
+
+    # Input features
+    data_freq, sliding_window_size, total_forecast_window, total_training_window, arima_order = 10, 144, 144, 1440, None
+
+    try:
+        # Ingest Data
+        df = anomaly_detection.ingest_data()
+
+        # Store input values
+        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, total_training_window, arima_order)
+
+        # Prepare data by performing feature extraction
+        buffers = anomaly_detection.prepare_data(df, sample_frequency)
 
         # Save EDA artifacts
         anomaly_detection.generate_and_save_eda_metrics(df)
@@ -101,13 +132,52 @@ def anomaly_detection_training_pipeline(source, sample_frequency, reporting_time
         logging.info(f'Stationarity : {anomaly_detection.check_stationarity(adf_results)}')
         logging.info(f'P-value : {adf_results[1]}')
 
-        # Plot positive/negative trends
-        fig = anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
-                                                              buffers['actual_positive_sentiments'],
-                                                              buffers['actual_negative_sentiments'],
-                                                              timeframe=reporting_timeframe)
+        # Generate an ARIMA model
+        stepwise_fit = anomaly_detection.run_auto_arima(buffers['actual_negative_sentiments'])
 
-        return fig
+        # Perform training
+        model_arima_results = anomaly_detection.build_arima_model(sliding_window_size, stepwise_fit, buffers['actual_negative_sentiments'])
+
+        # Detect anomalies
+        model_arima_results_full = anomaly_detection.detect_anomalies(model_arima_results.fittedvalues,
+                                                                      total_forecast_window,
+                                                                      buffers['actual_negative_sentiments'])
+
+
+        # Plot anomalies
+
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
+
+def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
+    logging.info("Starting Anomaly Detection Inference Pipeline.......................")
+
+    # Input features
+    data_freq, sliding_window_size, total_forecast_window, total_training_window, arima_order = 10, 144, 3, 1440, None
+
+    try:
+        # Ingest Data
+        data = anomaly_detection.ingest_data()
+
+        # Store input values
+        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, total_training_window, arima_order)
+
+        # Filter Data to return a total incremental training window of size total_training_window
+        data = anomaly_detection.filter_data(data, total_training_window)
+
+        # Prepare Data
+        buffers = anomaly_detection.prepare_data(data, sample_frequency)
+
+        # Retrieve auto-arima results
+        auto_arima_results = feature_store.load_artifact('anomaly_auto_arima')
+
+        # Generate predictions
+        predictions = anomaly_detection.generate_arima_predictions(sliding_window_size,
+                                                                   total_forecast_window,
+                                                                   auto_arima_results,
+                                                                   buffers['actual_negative_sentiments'])
 
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)

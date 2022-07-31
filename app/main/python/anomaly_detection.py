@@ -34,7 +34,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 from sklearn.model_selection import train_test_split
-from app.main.python import feature_store
+from app.main.python import feature_store, data_source
 
 
 ########################################################################################################################
@@ -45,20 +45,22 @@ from app.main.python import feature_store
 ########################
 # Ingest Data
 ########################
-def ingest_data(source):
+def ingest_data():
     logging.info('Ingest data...')
-    return pd.read_csv(source, parse_dates=['tweet_created'], index_col=['tweet_created'])
+    # TODO: retrieve from Rabbit Stream-backed queue
+    return data_source.get_data()
 
 
 #######################################
 # Set Global Values
 #######################################
-def initialize_input_features(data_freq=10, sliding_window_size=144, total_forecast_window=1440):
+def initialize_input_features(data_freq, sliding_window_size, total_training_window, arima_order):
     logging.info("Initializing input features...")
     input_features = {
         'data_freq': data_freq,
         'sliding_window_size': sliding_window_size,
-        'total_forecast_window': total_forecast_window
+        'total_training_window': total_training_window,
+        'arima_order': arima_order
     }
     feature_store.save_artifact(input_features, "anomaly_detection_input_features")
     return input_features
@@ -74,6 +76,24 @@ def generate_and_save_eda_metrics(df):
     data_summary['total'] = data_summary.sum(axis=1)
     feature_store.save_artifact(data_summary, "anomaly_detection_eda")
     return data_summary
+
+
+#############################
+# Filter Data
+#############################
+def filter_data(df, window):
+    logging.info("Filtering by retrieving only required subset of data...")
+    return df[window:]
+
+
+#############################
+# Prepare Data
+#############################
+
+def prepare_data(df, sample_frequency):
+    logging.info("Preparing data...")
+    data_buffers = extract_features(df, sample_frequency)
+    return data_buffers
 
 
 #######################################
@@ -152,8 +172,9 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, actual_negative_sentiments,
                                   timeframe='day'):
     logging.info("Plotting positive/negative trends...")
-    start_date, end_date = total_sentiments['sentiment'].index.max(), total_sentiments['sentiment'].index.max() - timedelta(
-        hours= get_time_lags(timeframe))
+    start_date, end_date = total_sentiments['sentiment'].index.max(), total_sentiments[
+        'sentiment'].index.max() - timedelta(
+        hours=get_time_lags(timeframe))
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
@@ -186,7 +207,7 @@ def run_auto_arima(actual_negative_sentiments):
 
 
 #######################################
-# Build ARIMA Model
+# Build ARIMA Model Results
 #######################################
 def build_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentiments):
     logging.info(f"Build ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
@@ -208,25 +229,25 @@ def build_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentime
 #######################################
 # Test ARIMA Model
 #######################################
-def test_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentiments):
+def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info('Testing ARIMA model...')
 
-    return generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negative_sentiments, pd.Series([]))
+    return generate_arima_predictions(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments)
 
 
 #######################################
 # Detect Anomalies
 #######################################
-def detect_anomalies(predictions, sliding_window_size, actual_negative_sentiments):
+def detect_anomalies(predictions, forecast_window_size, actual_negative_sentiments):
     logging.info('Detecting anomalies...')
 
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
 
-    predictions = predictions.iloc[-int(sliding_window_size):]
+    predictions = predictions.iloc[-int(forecast_window_size):]
 
     df_total = actual_negative_sentiments['sentiment_normalized']
-    mae = median_absolute_error(df_total.iloc[-int(sliding_window_size):], predictions)
+    mae = median_absolute_error(df_total.iloc[-int(forecast_window_size):], predictions)
 
     model_arima_results_full = \
         pd.DataFrame({'fittedvalues': predictions, 'median_values': predictions.rolling(4).median().fillna(0)},
@@ -265,7 +286,6 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, sta
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
     # Plot curves
-    fig, ax = plt.subplots(figsize=(28, 15))
     fig, ax = plt.subplots()
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
@@ -282,25 +302,22 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, sta
 #######################################
 # Generate ARIMA Predictions
 #######################################
-def generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negative_sentiments,
-                               predictions=pd.Series(dtype='float64')):
+def generate_arima_predictions(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
     df = actual_negative_sentiments.iloc[:-int(sliding_window_size)]
 
-    # The complete dataset
-    df_total = actual_negative_sentiments
-
-    start_date, end_date = df_total.index[len(df)], df_total.index[-1]
-
     # The number of forecasts per sliding window will be the number of AR lags, as ARIMA can't forecast beyond that
     num_lags = stepwise_fit.order[0]
 
-    # The number of sliding windows will be ( size of the sliding window / num_lags )
-    num_sliding_windows = sliding_window_size / num_lags
+    # The number of sliding windows will be ( total forecast size / num_lags )
+    num_sliding_windows = total_forecast_size / num_lags
 
     # Initialize the start & end indexes
     end_idx = len(df) - num_lags
+
+    # Get any prior ARIMA predictions
+    predictions = get_prior_arima_predictions()
 
     for idx in np.arange(num_sliding_windows):
         # Compute the start & end indexes
@@ -313,7 +330,20 @@ def generate_arima_predictions(sliding_window_size, stepwise_fit, actual_negativ
         pred = tmp_model_arima_results.forecast(steps=num_lags, typ="levels").rename('forecasted')
         predictions = predictions.append(pred)
 
+    # Save predictions
+    # latest_predictions = predictions[predictions.index > actual_negative_sentiments.index[-1]]
+    feature_store.save_artifact(predictions, 'anomaly_arima_predictions')
+
+    # Return predictions
     return predictions
+
+
+#######################################
+# Get any prior predictions
+#######################################
+
+def get_prior_arima_predictions():
+    return feature_store.load_artifact('anomaly_arima_predictions') or pd.getSeries([])
 
 
 #######################################

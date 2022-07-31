@@ -13,7 +13,6 @@ import streamlit.components.v1 as components
 # Set-up
 ########################
 warnings.filterwarnings('ignore')
-csv_data_source = 'data/airlinetweets.csv'
 
 
 #############################
@@ -22,7 +21,7 @@ csv_data_source = 'data/airlinetweets.csv'
 def show_trends(timeframe):
     try:
         logging.info('Showing trends in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline(csv_data_source, '10min', timeframe)
+        fig = main.anomaly_detection_show_trends('10min', timeframe)
         st.pyplot(fig)
         logging.info('Trend dashboard rendered.')
     except Exception as e:
@@ -36,7 +35,7 @@ def show_trends(timeframe):
 def train_sentiment_model():
     try:
         logging.info('Training sentiment analysis model...')
-        main.sentiment_analysis_training_pipeline(csv_data_source)
+        main.sentiment_analysis_training_pipeline()
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

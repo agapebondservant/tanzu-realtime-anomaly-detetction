@@ -33,20 +33,15 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 import sklearn.model_selection as model_selection
-from app.main.python import feature_store
+from app.main.python import feature_store, data_source
 
 
 ########################
 # Ingest Data
 ########################
-def ingest_data(source):
+def ingest_data():
     logging.info('Ingest data...')
-    return pd.read_csv(source, index_col="tweet_created")
-
-
-########################################################################################################################
-# ANOMALY DETECTION
-########################################################################################################################
+    return data_source.get_data()
 
 ########################################################################################################################
 # SENTIMENT ANALYSIS
