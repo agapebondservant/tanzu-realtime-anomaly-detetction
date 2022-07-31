@@ -310,7 +310,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
     # Plot curves
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(14, 5))
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, color='orange', label=f"ARIMA {stepwise_fit.order} Predictions")
