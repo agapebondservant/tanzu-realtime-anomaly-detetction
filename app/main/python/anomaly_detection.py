@@ -34,6 +34,9 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 from sklearn.model_selection import train_test_split
+import re
+import pytz
+import math
 from app.main.python import feature_store, data_source
 
 
@@ -215,9 +218,10 @@ def run_auto_arima(actual_negative_sentiments, retrain):
     if retrain is True:
         stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
                                   max_q=6,
-                                  seasonal=True, m=144, trace=True)
+                                  seasonal=False, trace=True)
 
     feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima')
+    print(f"feature store results is null: {stepwise_fit is None}")
     return stepwise_fit
 
 
@@ -280,6 +284,9 @@ def detect_anomalies(predictions, forecast_window_size, actual_negative_sentimen
 
     print(f"Anomaly distribution: \n{model_arima_results_full['anomaly'].value_counts()}")
 
+    # TODO: Publish anomaly summary to queue
+    publish_trend_stats(actual_negative_sentiments)
+
     return model_arima_results_full
 
 
@@ -318,7 +325,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
             marker='o', linestyle='None', color='red', label="Anomalies"
             )
     ax.legend()
-    fig.suptitle(f"ARIMA Model (Test): \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
+    fig.suptitle(f"ARIMA Model: \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
 
     return fig
 
@@ -377,3 +384,39 @@ def get_time_lags(timeframe='day'):
     logging.info(f"Get time lag for {timeframe}...")
     time_lags = {'hour': 1, 'day': 24, 'week': 168}
     return time_lags[timeframe]
+
+#######################################
+# Generate and publish stats
+#######################################
+
+
+def publish_trend_stats(actual_negative_sentiments):
+    sample_frequencies = ['1min', '10min', '60min']
+
+    stats = []
+
+    for sample_frequency in sample_frequencies:
+        num_negative_in_past, sample_frequency_num = 0, int(re.findall(r'\d+', sample_frequency)[0])
+
+        last_recorded_time = actual_negative_sentiments.index[-1]
+        offset_time = last_recorded_time - timedelta(minutes=sample_frequency_num)
+
+        num_negative_in_past = actual_negative_sentiments.loc[actual_negative_sentiments.index >= offset_time]['sentiment'].sum()
+        print(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
+
+        stats.append(num_negative_in_past)
+
+    summary = {sample_frequencies[i]: stats[i] for i in range(len(sample_frequencies))}
+    summary['anomaly_found'] = False # TODO: Set to True if new anomaly is found
+    feature_store.save_artifact(summary, 'anomaly_summary')
+
+    return summary
+
+
+#######################################
+# Retrieve generated stats
+#######################################
+
+
+def get_trend_stats():
+    return feature_store.load_artifact('anomaly_summary')

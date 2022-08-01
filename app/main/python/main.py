@@ -185,11 +185,11 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         # Ingest Data
         data = anomaly_detection.ingest_data()
 
-        # Store input values
-        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
-
         # Filter Data to return a total incremental training window of size total_training_window
         data = anomaly_detection.filter_data(data, total_training_window)
+
+        # Store input values
+        anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
 
         # Prepare Data
         buffers = anomaly_detection.prepare_data(data, sample_frequency)
@@ -203,6 +203,17 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
                                                                    auto_arima_results,
                                                                    buffers['actual_negative_sentiments'])
 
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
+
+def anomaly_detection_stats(sample_frequency):
+    logging.info("Running Anomaly Detection stats.......................")
+    try:
+        # Generate stats
+        stats = anomaly_detection.get_trend_stats()
+        return stats
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

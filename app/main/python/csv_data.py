@@ -4,12 +4,17 @@ import numpy as np
 import pandas as pd
 import feature_store
 from datetime import datetime, timedelta
+import pytz
 
 
 def get_data(old_data=None, offset=None):
     csv_data_source_path = 'data/airlinetweets.csv'
     new_data = pd.read_csv(csv_data_source_path, parse_dates=['tweet_created'],
                            index_col=['tweet_created']).sort_index()
+
+    # Adjust timestamps to align with today's date for demo purposes
+    lag_adjustment = pytz.utc.localize(datetime.now()) - new_data.index.max()
+    new_data.set_index(new_data.index + lag_adjustment, inplace=True)
 
     if old_data is None:
         return new_data

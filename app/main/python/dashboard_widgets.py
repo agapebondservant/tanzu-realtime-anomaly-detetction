@@ -28,6 +28,7 @@ def show_trends(timeframe):
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
 
+
 #############################
 # Show Anomalies
 #############################
@@ -35,9 +36,16 @@ def show_trends(timeframe):
 
 def show_anomalies(timeframe):
     try:
+        sample_freq = '10min'
+
+        # Plot anomalies
         logging.info('Showing anomalies in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline('10min', timeframe)
+        fig = main.anomaly_detection_training_pipeline(sample_freq, timeframe)
         st.pyplot(fig)
+
+        # Show Stats
+        render_stats_dashboard(sample_freq)
+
         logging.info('Anomalies dashboard rendered.')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
@@ -54,6 +62,7 @@ def train_sentiment_model():
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
+
 
 #############################
 # Perform Sentiment Analysis
@@ -87,6 +96,7 @@ def render_trends_dashboard(timeframe):
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
 
+
 #############################
 # Render Sentiment Analysis Dashboard
 #############################
@@ -96,6 +106,28 @@ def render_sentiment_analysis_dashboard():
     try:
         logging.info('Start sentiment analysis training...')
         train_sentiment_model()
+    except Exception as e:
+        logging.error('Could not complete execution - error occurred: ', exc_info=True)
+        traceback.print_exc()
+
+
+def render_stats_dashboard(sample_freq):
+    try:
+        logging.info('Render stats dashboard...')
+        stats = None
+
+        with st.spinner('Loading Statistics...'):
+            stats = main.anomaly_detection_stats(sample_freq)
+        if stats is not None:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric('Negative posts in last minute', stats['1min'], delta=f"{stats['1min']}", delta_color="inverse")
+            with col2:
+                st.metric('Negative posts in last 10 minutes', stats['10min'], delta=f"{stats['10min']}", delta_color="inverse")
+            with col3:
+                st.metric('Negative posts in last hour', stats['60min'], delta=f"{stats['60min']}", delta_color="inverse")
+
+        logging.info('Anomalies dashboard rendered.')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
