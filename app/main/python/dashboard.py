@@ -26,9 +26,9 @@ html, body, [class*="css"]{
 </style>
 """, unsafe_allow_html=True)
 
-st.header('Tanzu Realtime Anomaly Detection Demo')
+st.header('Tanzu/Vmware Realtime Anomaly Detection Demo')
 
-st.text('Near-realtime showcase of sentiment-based anomaly detection using Tanzu RabbitMQ')
+st.text('Near-realtime showcase of sentiment-based anomaly detection using Vmware RabbitMQ')
 
 tab1, tab2, tab3 = st.tabs(["Home", "Feedback", "Anomalies"])
 

@@ -113,7 +113,7 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
         traceback.print_exc()
 
 
-def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe):
+def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, retrain=False):
     logging.info("Starting Anomaly Detection Training Pipeline.......................")
 
     # Input features
@@ -136,7 +136,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe):
 
         # Prepare data by performing feature extraction
         buffers = anomaly_detection.prepare_data(df, sample_frequency, extvars)
-        total_training_window = len(buffers['actual_negative_sentiments'])
+        total_training_window = len(buffers['actual_negative_sentiments']) - total_forecast_window
 
         # Save EDA artifacts
         anomaly_detection.generate_and_save_eda_metrics(df)
@@ -151,7 +151,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe):
         logging.info(f'P-value : {adf_results[1]}')
 
         # Generate an ARIMA model
-        stepwise_fit = anomaly_detection.run_auto_arima(buffers['actual_negative_sentiments'])
+        stepwise_fit = anomaly_detection.run_auto_arima(buffers['actual_negative_sentiments'], retrain)
 
         # Perform training
         model_arima_results = anomaly_detection.build_arima_model(total_training_window, stepwise_fit, buffers['actual_negative_sentiments'])

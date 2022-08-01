@@ -83,3 +83,10 @@ pipenv install
 pipenv shell
 python -m streamlit run app/main/python/dashboard.py --logger.level=info
 ```
+
+* Launch tracker:
+```
+pipenv install
+pipenv shell
+python -m streamlit run app/main/python/tracker.py --logger.level=info
+```

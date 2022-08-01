@@ -208,14 +208,14 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 #######################################
 # Perform Auto ARIMA Search
 #######################################
-def run_auto_arima(actual_negative_sentiments):
+def run_auto_arima(actual_negative_sentiments, retrain):
     logging.info("Running auto_arima...")
     stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
 
-    if stepwise_fit is None:
+    if retrain is True:
         stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
                                   max_q=6,
-                                  seasonal=False, trace=True)
+                                  seasonal=True, m=144, trace=True)
 
     feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima')
     return stepwise_fit
@@ -315,7 +315,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
     ax.hlines(median(fitted_values_actual), xmin=start_date, xmax=end_date, linestyles='--',
               colors='blue')
     ax.plot(fitted_values_actual[-int(sliding_window_size):].loc[model_arima_results_full['anomaly'] == 1],
-            marker='o', linestyle='None', color='red'
+            marker='o', linestyle='None', color='red', label="Anomalies"
             )
     ax.legend()
     fig.suptitle(f"ARIMA Model (Test): \n Median Absolute Error (MAE): {mae_error}", fontsize=16)

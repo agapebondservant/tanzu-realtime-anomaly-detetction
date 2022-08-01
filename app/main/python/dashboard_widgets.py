@@ -36,7 +36,7 @@ def show_trends(timeframe):
 def show_anomalies(timeframe):
     try:
         logging.info('Showing anomalies in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline('10min', timeframe)
+        fig = main.anomaly_detection_training_pipeline('10min', timeframe, retrain=True)
         st.pyplot(fig)
         logging.info('Anomalies dashboard rendered.')
     except Exception as e:
@@ -90,6 +90,8 @@ def render_trends_dashboard(timeframe):
 #############################
 # Render Sentiment Analysis Dashboard
 #############################
+
+
 def render_sentiment_analysis_dashboard():
     try:
         logging.info('Start sentiment analysis training...')
