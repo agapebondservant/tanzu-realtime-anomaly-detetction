@@ -224,9 +224,9 @@ def run_auto_arima(actual_negative_sentiments, retrain):
 #######################################
 # Build ARIMA Model Results
 #######################################
-def build_arima_model(sliding_window_size, stepwise_fit, actual_negative_sentiments):
+def build_arima_model(training_window_size, stepwise_fit, actual_negative_sentiments):
     logging.info(f"Build ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
-    actual_negative_sentiments_train = actual_negative_sentiments.iloc[-int(sliding_window_size):]
+    actual_negative_sentiments_train = actual_negative_sentiments.iloc[-int(training_window_size):]
 
     model_arima_order = stepwise_fit.order
 
@@ -329,7 +329,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
 def generate_arima_predictions(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
-    df = actual_negative_sentiments.iloc[:-int(sliding_window_size)]
+    df = actual_negative_sentiments.iloc[:-int(total_forecast_size)]
 
     # The number of forecasts per sliding window will be the number of AR lags, as ARIMA can't forecast beyond that
     num_lags = stepwise_fit.order[0]

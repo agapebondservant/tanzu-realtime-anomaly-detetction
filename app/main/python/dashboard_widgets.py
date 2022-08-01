@@ -36,7 +36,7 @@ def show_trends(timeframe):
 def show_anomalies(timeframe):
     try:
         logging.info('Showing anomalies in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline('10min', timeframe, retrain=True)
+        fig = main.anomaly_detection_training_pipeline('10min', timeframe)
         st.pyplot(fig)
         logging.info('Anomalies dashboard rendered.')
     except Exception as e:

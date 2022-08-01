@@ -4,4 +4,5 @@
 tmp/
 *.png
 artifacts/*
+resources/kubernetes/artifacts
 app/main/python/__pycache__/*.*
