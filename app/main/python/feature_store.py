@@ -10,7 +10,7 @@ import traceback
 ########################
 def save_artifact(artifact, artifact_name):
     try:
-        artifact_handle = open(f"artifacts/{artifact_name}.pkl", "wb")
+        artifact_handle = open(f"app/artifacts/{artifact_name}.pkl", "wb")
         joblib.dump(artifact, artifact_handle)
         artifact_handle.close()
     except Exception as e:
@@ -25,7 +25,7 @@ def save_artifact(artifact, artifact_name):
 def load_artifact(artifact_name):
     artifact = None
     try:
-        artifact_handle = open(f"artifacts/{artifact_name}.pkl", "rb")
+        artifact_handle = open(f"app/artifacts/{artifact_name}.pkl", "rb")
         artifact = joblib.load(artifact_handle)
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)

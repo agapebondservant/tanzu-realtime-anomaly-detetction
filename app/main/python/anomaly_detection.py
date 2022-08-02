@@ -124,7 +124,7 @@ def standardize_data(buffers, extvars):
         extvars['anomaly_positive_standard_scalar'].fit_transform(actual_positive_sentiments[['sentiment']])
     buffers['actual_negative_sentiments'][['sentiment_normalized']] = \
         extvars['anomaly_negative_standard_scalar'].fit_transform(actual_negative_sentiments[['sentiment']])
-    buffers['actual_negative_sentiments'][['sentiment_normalized']] = \
+    buffers['actual_neutral_sentiments'][['sentiment_normalized']] = \
         extvars['anomaly_neutral_standard_scalar'].fit_transform(actual_neutral_sentiments[['sentiment']])
 
     return buffers
@@ -319,8 +319,8 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, color='orange', label=f"ARIMA {stepwise_fit.order} Predictions")
-    ax.hlines(median(fitted_values_actual), xmin=start_date, xmax=end_date, linestyles='--',
-              colors='blue')
+    #ax.hlines(median(fitted_values_actual), xmin=start_date, xmax=end_date, linestyles='--',
+    #          colors='blue')
     ax.plot(fitted_values_actual[-int(sliding_window_size):].loc[model_arima_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies"
             )

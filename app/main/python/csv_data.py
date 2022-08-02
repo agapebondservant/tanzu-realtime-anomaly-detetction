@@ -8,7 +8,7 @@ import pytz
 
 
 def get_data(old_data=None, offset=None):
-    csv_data_source_path = 'data/airlinetweets.csv'
+    csv_data_source_path = 'app/data/airlinetweets.csv'
     new_data = pd.read_csv(csv_data_source_path, parse_dates=['tweet_created'],
                            index_col=['tweet_created']).sort_index()
 

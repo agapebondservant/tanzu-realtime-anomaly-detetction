@@ -90,3 +90,14 @@ pipenv install
 pipenv shell
 python -m streamlit run app/main/python/tracker.py --logger.level=info
 ```
+
+### Deploy Apps to Kubernetes
+```
+kubectl create ns streamlit
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/dashboard.py
+kubectl create deployment streamlit-tracker --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/tracker.py
+kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=dashboard-svc --type=LoadBalancer -nstreamlit
+kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=tracker-svc --type=LoadBalancer -nstreamlit
+kubectl get all streamlit-svc -nstreamlit
+# (NOTE: If on AWS, change the timeout settings for the LoadBalancers to 3600)
+```
