@@ -91,6 +91,12 @@ pipenv shell
 python -m streamlit run app/main/python/tracker.py --logger.level=info
 ```
 
+### Build Docker Containers for Apps
+```
+docker build -t oawofolu/streamlit .
+docker push oawofolu/streamlit
+```
+
 ### Deploy Apps to Kubernetes
 ```
 kubectl create ns streamlit
@@ -98,6 +104,10 @@ kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstre
 kubectl create deployment streamlit-tracker --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/tracker.py
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=dashboard-svc --type=LoadBalancer -nstreamlit
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=tracker-svc --type=LoadBalancer -nstreamlit
-kubectl get all streamlit-svc -nstreamlit
+watch kubectl get all -nstreamlit
 # (NOTE: If on AWS, change the timeout settings for the LoadBalancers to 3600)
+# (NOTE: Update any associated DNS entries as appropriate)
 ```
+
+### Set up RabbitMQ connection
+* Update DNS settings for the RabbitMQ service:
