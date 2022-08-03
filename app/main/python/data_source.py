@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import feature_store
 from datetime import datetime, timedelta
-from app.main.python import csv_data, mq_data
+from app.main.python import csv_data, mq_data, firehose_publisher
 
 
 def get_data_source_mode():

@@ -16,6 +16,7 @@ publisher_channel = None
 def on_connected(connection):
     """Called when we are fully connected to RabbitMQ"""
     # Open a channel
+    logging.info("In on_connected")
     connection.channel(on_open_callback=on_channel_open)
 
 #####################
@@ -76,3 +77,6 @@ def init_connection(host=None):
         publisher_connection.close()
         # Loop until we're fully closed, will stop on its own
         publisher_connection.ioloop.start()
+
+
+#init_connection('rabbitanalytics1.streamlit.svc.cluster.local')

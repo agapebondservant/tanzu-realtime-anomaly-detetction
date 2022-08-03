@@ -14,6 +14,9 @@ def get_data(data=None, last_offset=None):
 
 def publish_data():
     # Producer
+    print()
+
 
 def consume_data():
     # Consumer
+    print()

@@ -11,6 +11,7 @@ subscriber_channel = None
 
 # Initialize other variables
 prefetch_count = 1000
+conn_retry_count = 0
 
 
 # Step #2
@@ -32,8 +33,9 @@ def on_channel_open(new_channel):
     global subscriber_channel
     subscriber_channel = new_channel
     subscriber_channel.add_on_close_callback(on_channel_closed)
-    subscriber_channel.queue_declare(queue="rabbitanalytics1-stream", durable=True, callback=on_queue_declared, passive=True,
-                          arguments={'x-queue-type': 'stream'})
+    subscriber_channel.queue_declare(queue="rabbitanalytics1-stream", durable=True, callback=on_queue_declared,
+                                     passive=True,
+                                     arguments={'x-queue-type': 'stream'})
 
 
 # Step #4
@@ -47,7 +49,7 @@ def on_queue_declared(frame):
             logging.info("Queue should be predeclared")
         subscriber_channel.basic_qos(prefetch_count=prefetch_count)
         subscriber_channel.basic_consume('rabbitanalytics1-stream', on_message_callback=handle_delivery,
-                              arguments={'x-stream-offset': 10000}, consumer_tag='firehose')
+                                         arguments={'x-stream-offset': 10000}, consumer_tag='firehose')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
@@ -84,9 +86,12 @@ def on_channel_closed(subscriber_channel, error):
         parameters = pika.ConnectionParameters(host='rabbitanalytics1.data-samples-w03-s001.svc.cluster.local',
                                                credentials=pika.PlainCredentials('data-user', 'data-password'))
         global subscriber_connection
-        if subscriber_connection is not None:
+        try:
+            subscriber_connection
             subscriber_connection.close()
             time.sleep(1)
+        except Exception as e:
+            pass
         subscriber_connection = pika.SelectConnection(parameters, on_open_callback=on_connected)
         subscriber_connection.add_on_open_error_callback(on_connection_error)
         reloop(subscriber_connection)
@@ -97,6 +102,10 @@ def on_channel_closed(subscriber_channel, error):
 
 def reloop(subscriber_connection):
     try:
+        # exit if number of connection retries exceeds a threshold
+        conn_retry_count = conn_retry_count + 1
+        if conn_retry_count > 10:
+            raise KeyboardInterrupt
         # Loop so we can communicate with RabbitMQ
         subscriber_connection.ioloop.start()
     except KeyboardInterrupt:
@@ -126,3 +135,5 @@ def init_connection(host=None):
         # Loop until we're fully closed, will stop on its own
         subscriber_connection.ioloop.start()
 
+
+#init_connection('rabbitanalytics1.streamlit.svc.cluster.local')
