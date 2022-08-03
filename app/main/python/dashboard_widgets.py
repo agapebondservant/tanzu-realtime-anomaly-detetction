@@ -8,6 +8,8 @@ from pylab import rcParams
 from app.main.python import main
 import mpld3
 import streamlit.components.v1 as components
+from app.main.python import config
+from app.main.python.firehose_publisher import FireHosePublisher
 
 ########################
 # Set-up
@@ -117,7 +119,8 @@ def render_stats_dashboard(sample_freq):
         stats = None
 
         with st.spinner('Loading Statistics...'):
-            stats = main.anomaly_detection_stats(sample_freq)
+            stats = main.anomaly_detection_stats(sample_freq, config.publisher is None)
+
         if stats is not None:
             col1, col2, col3 = st.columns(3)
             with col1:

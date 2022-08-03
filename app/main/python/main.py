@@ -10,6 +10,8 @@ from pylab import rcParams
 from datetime import datetime, timedelta
 from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 from sklearn.preprocessing import StandardScaler
+from app.main.python.firehose_publisher import FireHosePublisher
+from app.main.python import config
 
 ########################
 # Set-up
@@ -208,9 +210,14 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         traceback.print_exc()
 
 
-def anomaly_detection_stats(sample_frequency):
+def anomaly_detection_stats(sample_frequency, init=False):
     logging.info("Running Anomaly Detection stats.......................")
     try:
+        # Initialize realtime data filter if necessary
+        if init:
+            config.publisher = FireHosePublisher(host='rabbitanalytics1.streamlit.svc.cluster.local')
+            config.publisher.start()
+
         # Generate stats
         stats = anomaly_detection.get_trend_stats()
         return stats
