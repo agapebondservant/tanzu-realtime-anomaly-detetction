@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 from sklearn.preprocessing import StandardScaler
 from app.main.python.firehose_publisher import FireHosePublisher
+from app.main.python.firehose_subscriber import FireHoseSubscriber
 from app.main.python import config
 
 ########################
@@ -156,7 +157,8 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
         stepwise_fit = anomaly_detection.run_auto_arima(buffers['actual_negative_sentiments'], retrain)
 
         # Perform training
-        model_arima_results = anomaly_detection.build_arima_model(total_training_window, stepwise_fit, buffers['actual_negative_sentiments'])
+        model_arima_results = anomaly_detection.build_arima_model(total_training_window, stepwise_fit,
+                                                                  buffers['actual_negative_sentiments'])
 
         # Detect anomalies
         model_arima_results_full = anomaly_detection.detect_anomalies(model_arima_results.fittedvalues,
@@ -210,13 +212,13 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         traceback.print_exc()
 
 
-def anomaly_detection_stats(sample_frequency, init=False):
+def anomaly_detection_stats(sample_frequency):
     logging.info("Running Anomaly Detection stats.......................")
     try:
         # Initialize realtime data filter if necessary
-        if init:
-            config.publisher = FireHosePublisher(host='rabbitanalytics1.streamlit.svc.cluster.local')
-            config.publisher.start()
+        # if config.publisher is None:
+        #    config.publisher = FireHosePublisher(host=config.host)
+        #    config.publisher.start()
 
         # Generate stats
         stats = anomaly_detection.get_trend_stats()
@@ -224,3 +226,25 @@ def anomaly_detection_stats(sample_frequency, init=False):
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
+
+
+#############################
+# Initialize MQ connections
+#############################
+def initialize():
+    if config.publisher is None:
+        config.publisher = FireHosePublisher(host=config.host)
+        config.publisher.start()
+    if config.subscriber is None:
+        config.subscriber = FireHoseSubscriber(host=config.host)
+        config.subscriber.start()
+
+    # if config.stats_publisher is None:
+    #    config.stats_publisher = FireHosePublisher(host=config.stats_host)
+    #    config.stats_publisher.start()
+    # if config.stats_subscriber is None:
+    #    config.stats_subscriber = FireHoseSubscriber(host=config.stats_host)
+    #    config.stats_subscriber.start()
+
+
+initialize()

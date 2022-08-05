@@ -5,135 +5,126 @@ import pika
 import logging
 import time
 import traceback
+import threading
+import json
 
-# Create a global channel variable to hold our channel object in
-subscriber_channel = None
-
-# Initialize other variables
-prefetch_count = 1000
-conn_retry_count = 0
+base_connection = None
 
 
-# Step #2
+class FireHoseSubscriber(threading.Thread):
 
+    # Step 2
 
-def on_connected(subscriber_connection):
-    logging.info("In on_connected...")
-    """Called when we are fully connected to RabbitMQ"""
-    # Open a channel
-    subscriber_connection.channel(on_open_callback=on_channel_open)
+    def on_connected(self, conn):
+        logging.info("In on_connected...")
+        """Called when we are fully connected to RabbitMQ"""
+        # Open a channel
+        base_connection = conn
+        base_connection.channel(on_open_callback=lambda ch: self.on_channel_open(ch))
 
+    # Step #3
 
-# Step #3
+    def on_channel_open(self, new_channel):
+        """Called when our channel has opened"""
+        logging.info("In on_channel_open...")
+        self.channel = new_channel
+        self.channel.add_on_close_callback(lambda ch, err: self.on_channel_closed(ch, err))
+        self.channel.queue_declare(queue=self.queue, durable=True,
+                                   callback=lambda frame: self.on_queue_declared(frame),
+                                   passive=True,
+                                   arguments=self.queue_arguments)
 
+    # Step #4
 
-def on_channel_open(new_channel):
-    """Called when our channel has opened"""
-    logging.info("In on_channel_open...")
-    global subscriber_channel
-    subscriber_channel = new_channel
-    subscriber_channel.add_on_close_callback(on_channel_closed)
-    subscriber_channel.queue_declare(queue="rabbitanalytics1-stream", durable=True, callback=on_queue_declared,
-                                     passive=True,
-                                     arguments={'x-queue-type': 'stream'})
-
-
-# Step #4
-
-
-def on_queue_declared(frame):
-    """Called when RabbitMQ has told us our Queue has been declared, frame is the response from RabbitMQ"""
-    logging.info("In on_queue_declared...")
-    try:
-        if not frame:
-            logging.info("Queue should be predeclared")
-        subscriber_channel.basic_qos(prefetch_count=prefetch_count)
-        subscriber_channel.basic_consume('rabbitanalytics1-stream', on_message_callback=handle_delivery,
-                                         arguments={'x-stream-offset': 10000}, consumer_tag='firehose')
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
-
-
-# Step #5
-
-
-def handle_delivery(subscriber_channel, method, header, body):
-    """Called when we receive a message from RabbitMQ"""
-    logging.info(f"Received a message!...{body}")
-    try:
-        subscriber_channel.basic_ack(method.delivery_tag, False)
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-
-
-def on_connection_error(subscriber_connection, error):
-    try:
-        logging.error(f'Error while attempting to connect...{subscriber_connection} {error}')
-        parameters = pika.ConnectionParameters(host='rabbitanalytics1.data-samples-w03-s001.svc.cluster.local',
-                                               credentials=pika.PlainCredentials('data-user', 'data-password'))
-        subscriber_connection = pika.SelectConnection(parameters, on_open_callback=on_connected)
-        subscriber_connection.add_on_open_error_callback(on_connection_error)
-        reloop(subscriber_connection)
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
-
-
-def on_channel_closed(subscriber_channel, error):
-    try:
-        logging.error(f'Error while attempting to connect...{error} {subscriber_channel}')
-        parameters = pika.ConnectionParameters(host='rabbitanalytics1.data-samples-w03-s001.svc.cluster.local',
-                                               credentials=pika.PlainCredentials('data-user', 'data-password'))
-        global subscriber_connection
+    def on_queue_declared(self, frame):
+        """Called when RabbitMQ has told us our Queue has been declared, frame is the response from RabbitMQ"""
+        logging.info("In on_queue_declared...")
         try:
-            subscriber_connection
-            subscriber_connection.close()
-            time.sleep(1)
+            if not frame:
+                logging.info("Queue should be predeclared")
+            self.channel.basic_qos(prefetch_count=self.prefetch_count)
+            self.channel.basic_consume(self.queue,
+                                       on_message_callback=lambda ch, m, h, body: self.callback(self, ch, m, h, body),
+                                       arguments=self.consumer_arguments,
+                                       consumer_tag='firehose')
         except Exception as e:
-            pass
-        subscriber_connection = pika.SelectConnection(parameters, on_open_callback=on_connected)
-        subscriber_connection.add_on_open_error_callback(on_connection_error)
-        reloop(subscriber_connection)
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
+            traceback.print_exc()
 
+    # Step #5
 
-def reloop(subscriber_connection):
-    try:
-        # exit if number of connection retries exceeds a threshold
-        conn_retry_count = conn_retry_count + 1
-        if conn_retry_count > 10:
-            raise KeyboardInterrupt
-        # Loop so we can communicate with RabbitMQ
-        subscriber_connection.ioloop.start()
-    except KeyboardInterrupt:
-        logging.error('Keyboard Interrupt: ', exc_info=True)
-        traceback.print_exc()
-        # Gracefully close the subscriber_connection
-        subscriber_connection.close()
-        # Loop until we're fully closed, will stop on its own
-        subscriber_connection.ioloop.start()
+    def handle_delivery(self, channel, method, header, body):
+        """Called when we receive a message from RabbitMQ"""
+        logging.info(f"Received a message!...{json.loads(body)}")
+        try:
+            self.channel = channel
+            self.channel.basic_ack(method.delivery_tag, False)
+        except Exception as e:
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
 
+    def on_connection_error(self, conn, error):
+        try:
+            logging.error(f'Error while attempting to connect...{conn} {error}')
+            self.connect(base_connection)
+        except Exception as e:
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
+            traceback.print_exc()
 
-# Step #1: Connect to RabbitMQ using the default parameters
+    def on_channel_closed(self, channel, error):
+        try:
+            logging.error(f'Error while attempting to connect...{error} {channel}')
+            try:
+                base_connection.close()
+                time.sleep(1)
+            except Exception as e:
+                pass
+            self.connect(base_connection)
+        except Exception as e:
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
+            traceback.print_exc()
 
-def init_connection(host=None):
-    parameters = pika.ConnectionParameters(host=host,
-                                           credentials=pika.PlainCredentials('data-user', 'data-password'))
-    subscriber_connection = pika.SelectConnection(parameters, on_open_callback=on_connected)
-    subscriber_connection.add_on_open_error_callback(on_connection_error)
-    try:
-        # Loop so we can communicate with RabbitMQ
-        subscriber_connection.ioloop.start()
-    except KeyboardInterrupt as e:
-        logging.error('Keyboard Interrupt: ', exc_info=True)
-        traceback.print_exc()
-        # Gracefully close the subscriber_connection
-        subscriber_connection.close()
-        # Loop until we're fully closed, will stop on its own
-        subscriber_connection.ioloop.start()
+    def connect(self, conn):
+        try:
+            # exit if number of connection retries exceeds a threshold
+            self.conn_retry_count = self.conn_retry_count + 1
+            if self.conn_retry_count > 10:
+                raise KeyboardInterrupt
+            # Loop so we can communicate with RabbitMQ
+            conn.ioloop.start() if conn is not None else True
+        except KeyboardInterrupt:
+            logging.error('Keyboard Interrupt: ', exc_info=True)
+            traceback.print_exc()
+            # Gracefully close the connection
+            conn.close()
+            # Loop until we're fully closed, will stop on its own
+            conn.ioloop.start()
 
+    def init_connection(self):
+        base_connection = pika.SelectConnection(self.parameters, on_open_callback=lambda conn: self.on_connected(conn))
+        base_connection.add_on_open_error_callback(lambda conn, err: self.on_connection_error(conn, err))
+        self.connect(base_connection)
 
-#init_connection('rabbitanalytics1.streamlit.svc.cluster.local')
+    # Step #1: Connect to RabbitMQ using the default parameters
+    def run(self):
+        self.init_connection()
+
+    # Step #0: Initialize class
+    def __init__(self,
+                 host=None,
+                 callback=handle_delivery,
+                 queue='rabbitanalytics1-stream',
+                 queue_arguments={'x-queue-type': 'stream'},
+                 consumer_arguments={'x-stream-offset': 0},
+                 prefetch_count=1000,
+                 conn_retry_count=0):
+        super(FireHoseSubscriber, self).__init__()
+        self.parameters = pika.ConnectionParameters(host=host,
+                                                    credentials=pika.PlainCredentials('data-user', 'data-password'))
+        self.host = host
+        self.callback = callback or self.handle_delivery
+        self.queue = queue
+        self.queue_arguments = queue_arguments
+        self.consumer_arguments = consumer_arguments
+        self.prefetch_count = prefetch_count
+        self.conn_retry_count = conn_retry_count
+        self.channel = None
