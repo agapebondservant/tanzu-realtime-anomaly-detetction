@@ -37,7 +37,8 @@ from sklearn.model_selection import train_test_split
 import re
 import pytz
 import math
-from app.main.python import feature_store, data_source
+import json
+from app.main.python import feature_store, data_source, config
 
 
 ########################################################################################################################
@@ -101,12 +102,17 @@ def prepare_data(df, sample_frequency, extvars):
 #######################################
 # Perform feature extraction via resampling
 #######################################
-def extract_features(df, sample_frequency, extvars):
+def extract_features(df, sample_frequency='10min', extvars={}, is_partial_data=False):
     logging.info("Performing feature extraction...")
 
     df['sentiment'] = df['airline_sentiment'].map({'positive': 1, 'neutral': 0, 'negative': -1})
 
-    return save_data_buffers(df, sample_frequency, extvars)
+    filtered_data_sets = get_filtered_data_sets(df, sample_frequency, extvars)
+
+    if is_partial_data is False:
+        feature_store.save_artifact(filtered_data_sets, 'anomaly_detection_buffers')
+
+    return filtered_data_sets
 
 
 #######################################
@@ -133,7 +139,7 @@ def standardize_data(buffers, extvars):
 #######################################
 # Initialize Data Buffers
 #######################################
-def save_data_buffers(df, sample_frequency, extvars):
+def get_filtered_data_sets(df, sample_frequency, extvars):
     logging.info("Generate and save data buffers to use for stream processing...")
 
     data_buffers = {
@@ -145,7 +151,6 @@ def save_data_buffers(df, sample_frequency, extvars):
 
     data_buffers = standardize_data(data_buffers, extvars)
 
-    feature_store.save_artifact(data_buffers, 'anomaly_detection_buffers')
     return data_buffers
 
 
@@ -285,6 +290,7 @@ def detect_anomalies(predictions, forecast_window_size, actual_negative_sentimen
     print(f"Anomaly distribution: \n{model_arima_results_full['anomaly'].value_counts()}")
 
     # TODO: Publish anomaly summary to queue
+    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments')
     publish_trend_stats(actual_negative_sentiments)
 
     return model_arima_results_full
@@ -319,7 +325,7 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, color='orange', label=f"ARIMA {stepwise_fit.order} Predictions")
-    #ax.hlines(median(fitted_values_actual), xmin=start_date, xmax=end_date, linestyles='--',
+    # ax.hlines(median(fitted_values_actual), xmin=start_date, xmax=end_date, linestyles='--',
     #          colors='blue')
     ax.plot(fitted_values_actual[-int(sliding_window_size):].loc[model_arima_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies"
@@ -385,15 +391,23 @@ def get_time_lags(timeframe='day'):
     time_lags = {'hour': 1, 'day': 24, 'week': 168}
     return time_lags[timeframe]
 
+
 #######################################
 # Generate and publish stats
 #######################################
 
 
-def publish_trend_stats(actual_negative_sentiments):
+def publish_trend_stats(actual_negative_sentiments=None):
+    if actual_negative_sentiments is None:
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments')
+
     sample_frequencies = ['1min', '10min', '60min']
 
     stats = []
+
+    old_summary = feature_store.load_artifact('anomaly_summary')
+    if old_summary is None:
+        old_summary = pd.DataFrame()
 
     for sample_frequency in sample_frequencies:
         num_negative_in_past, sample_frequency_num = 0, int(re.findall(r'\d+', sample_frequency)[0])
@@ -401,16 +415,25 @@ def publish_trend_stats(actual_negative_sentiments):
         last_recorded_time = actual_negative_sentiments.index[-1]
         offset_time = last_recorded_time - timedelta(minutes=sample_frequency_num)
 
-        num_negative_in_past = actual_negative_sentiments.loc[actual_negative_sentiments.index >= offset_time]['sentiment'].sum()
-        print(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
+        num_negative_in_past = actual_negative_sentiments.loc[actual_negative_sentiments.index >= offset_time][
+            'sentiment'].sum()
+        logging.info(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
 
         stats.append(num_negative_in_past)
 
-    summary = {sample_frequencies[i]: stats[i] for i in range(len(sample_frequencies))}
-    summary['anomaly_found'] = False # TODO: Set to True if new anomaly is found
+    new_summary = {sample_frequencies[i]: [stats[i]] for i in range(len(sample_frequencies))}
+    new_summary['anomaly_found'] = [False]  # TODO: Set to True if new anomaly is found
+    new_summary = pd.DataFrame.from_dict(new_summary)
+
+    summary = pd.concat([old_summary, new_summary])
+    logging.info(f"New Summary: {new_summary}")
+
     feature_store.save_artifact(summary, 'anomaly_summary')
 
-    return summary
+    # Publish to queue
+    config.stats_publisher.send_data(new_summary)
+
+    return new_summary
 
 
 #######################################
@@ -420,3 +443,8 @@ def publish_trend_stats(actual_negative_sentiments):
 
 def get_trend_stats():
     return feature_store.load_artifact('anomaly_summary')
+
+
+def process_stats(head, body):
+    logging.info('In process_stats...')
+    logging.info(f'{json.loads(body)} {head}')

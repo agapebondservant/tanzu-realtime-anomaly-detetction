@@ -118,13 +118,14 @@ def render_stats_dashboard(sample_freq):
             stats = main.anomaly_detection_stats(sample_freq)
 
         if stats is not None:
+            stat = stats.loc[-1]
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric('Negative posts in last minute', stats['1min'], delta=f"{stats['1min']}", delta_color="inverse")
+                st.metric('Negative posts in last minute', stat['1min'], delta=f"{stat['1min']}", delta_color="inverse")
             with col2:
-                st.metric('Negative posts in last 10 minutes', stats['10min'], delta=f"{stats['10min']}", delta_color="inverse")
+                st.metric('Negative posts in last 10 minutes', stat['10min'], delta=f"{stat['10min']}", delta_color="inverse")
             with col3:
-                st.metric('Negative posts in last hour', stats['60min'], delta=f"{stats['60min']}", delta_color="inverse")
+                st.metric('Negative posts in last hour', stat['60min'], delta=f"{stat['60min']}", delta_color="inverse")
 
         logging.info('Anomalies dashboard rendered.')
     except Exception as e:

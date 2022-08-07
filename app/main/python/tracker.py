@@ -9,6 +9,10 @@ from app.main.python import dashboard_widgets
 import mpld3
 import streamlit.components.v1 as components
 import time
+from app.main.python import main
+
+# Initializations
+main.initialize()
 
 st.write("""
 <style>

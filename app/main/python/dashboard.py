@@ -8,7 +8,10 @@ from pylab import rcParams
 from app.main.python import dashboard_widgets
 import mpld3
 import streamlit.components.v1 as components
+from app.main.python import main
 
+# Initializations
+main.initialize()
 
 def show_sentiment(newpost):
     print(newpost)

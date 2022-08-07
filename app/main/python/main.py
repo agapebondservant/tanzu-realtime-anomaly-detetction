@@ -12,7 +12,7 @@ from app.main.python import sentiment_analysis, anomaly_detection, data_source, 
 from sklearn.preprocessing import StandardScaler
 from app.main.python.firehose_publisher import FireHosePublisher
 from app.main.python.firehose_subscriber import FireHoseSubscriber
-from app.main.python import config
+from app.main.python import config, csv_data
 
 ########################
 # Set-up
@@ -232,19 +232,26 @@ def anomaly_detection_stats(sample_frequency):
 # Initialize MQ connections
 #############################
 def initialize():
+    # stream_callback = lambda head, body: anomaly_detection.process_stats(head, body)
+
     if config.publisher is None:
-        config.publisher = FireHosePublisher(host=config.host)
+        config.publisher = FireHosePublisher(host=config.host, data=csv_data.get_data())
         config.publisher.start()
     if config.subscriber is None:
-        config.subscriber = FireHoseSubscriber(host=config.host)
+        config.subscriber = FireHoseSubscriber(host=config.host,
+                                               process_delivery_callback=anomaly_detection.process_stats,
+                                               # stream_callback,
+                                               queue='rabbitanalytics1-stats')
         config.subscriber.start()
 
-    # if config.stats_publisher is None:
-    #    config.stats_publisher = FireHosePublisher(host=config.stats_host)
-    #    config.stats_publisher.start()
+    if config.stats_publisher is None:
+        config.stats_publisher = FireHosePublisher(host=config.host,
+                                                   routing_key='anomaly.stats.all',
+                                                   exchange='rabbitanalytics1-exchange')
+        config.stats_publisher.start()
     # if config.stats_subscriber is None:
-    #    config.stats_subscriber = FireHoseSubscriber(host=config.stats_host)
+    #     config.stats_subscriber = FireHoseSubscriber(host=config.host)
     #    config.stats_subscriber.start()
 
 
-initialize()
+# initialize()

@@ -4,11 +4,8 @@ import time
 import datetime
 import logging
 import traceback
-from app.main.python import csv_data
 import threading
 import json
-
-base_connection = None
 
 
 class FireHosePublisher(threading.Thread):
@@ -20,9 +17,10 @@ class FireHosePublisher(threading.Thread):
     def on_connected(self, conn):
         """Called when we are fully connected to RabbitMQ"""
         # Open a channel
-        logging.info("In on_connected")
-        base_connection = conn
-        base_connection.channel(on_open_callback=lambda ch: self.callback(self, ch))
+        logging.info(f"In on_connected: {conn} {self.data}")
+        self._connection = conn
+        if self.data is not None:
+            self._connection.channel(on_open_callback=lambda ch: self.load_stream_data(ch))
 
     #####################
     # Step #3
@@ -31,15 +29,17 @@ class FireHosePublisher(threading.Thread):
     def load_stream_data(self, new_channel):
         """Called when our channel has opened"""
         self.channel = new_channel
-        df = csv_data.get_data()
-        logging.info(df)
-        for i in df.index:
-            # msg = df.loc[i].to_json("row{}.json".format(i), orient="records")
-            msg = df.loc[i].to_json(orient="records")
-            # logging.info(f'Have another message: {msg}')
-            self.channel.basic_publish('rabbitanalytics1-stream-exchange', 'anomalyall', json.dumps(msg),
-                                       pika.BasicProperties(content_type='text/plain',
-                                                            delivery_mode=pika.DeliveryMode.Persistent))
+        # self.channel.add_on_close_callback(lambda ch, err: self.on_channel_closed(ch, err))
+        logging.info(f"data type: {type(self.data)} {self.data}")
+
+        if self.data is not None:
+            orientation = 'records' if any(self.data.index.duplicated()) else 'index'
+            for i in self.data.index:
+                msg = self.data.loc[i].to_json(orient=orientation)
+                # logging.info(f'Have another message: {msg}')
+                self.channel.basic_publish(self.exchange, self.routing_key, json.dumps(msg),
+                                           pika.BasicProperties(content_type='text/plain',
+                                                                delivery_mode=pika.DeliveryMode.Persistent))
 
     def on_closed(self, connection, error):
         logging.error(error)
@@ -48,34 +48,70 @@ class FireHosePublisher(threading.Thread):
     def on_connection_error(self, connection, error):
         logging.error(f'Error while attempting to connect...{error} {connection}')
 
+    def on_channel_closed(self, channel, error):
+        try:
+            logging.error(f'Error while attempting to connect...{error} {channel}')
+            try:
+                self._connection.close() if self._connection.is_closing or self._connection.is_closed else True
+                time.sleep(1)
+            except Exception as e:
+                pass
+
+            # reconnect
+            self._connection = self.init_connection()
+            self.connect(self._connection)
+        except Exception as e:
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
+            traceback.print_exc()
+
     #####################
     # Domain Methods
     #####################
     def run(self):
-        base_connection = pika.SelectConnection(self.parameters,
+        self._connection = self.init_connection()
+        self.connect(self._connection)
+
+    def send_data(self, data_to_send):
+        self.data = data_to_send
+        logging.info('was in send_data...')
+        if self._connection is not None:
+            logging.info('base connection not null')
+            self.on_connected(self._connection)
+
+    def init_connection(self):
+        conn = pika.SelectConnection(self.parameters,
                                                 on_open_callback=lambda conn: self.on_connected(conn),
                                                 on_close_callback=lambda conn, err: self.on_closed(conn, err))
-        base_connection.add_on_open_error_callback(self.on_connection_error)
+        conn.add_on_open_error_callback(self.on_connection_error)
+        return conn
 
+    def connect(self, conn):
         try:
             # Loop so we can communicate with RabbitMQ
             # exit if number of connection retries exceeds a threshold
             self.conn_retry_count = self.conn_retry_count + 1
             if self.conn_retry_count > 10:
                 raise KeyboardInterrupt
-            base_connection.ioloop.start()
+            self._connection.ioloop.start()
         except KeyboardInterrupt:
             # Gracefully close the connection
-            base_connection.close()
+            self._connection.close()
             # Loop until we're fully closed, will stop on its own
-            base_connection.ioloop.start()
+            self._connection.ioloop.start()
 
     # Step #1: Connect to RabbitMQ using the default parameters
 
-    def __init__(self, host=None, callback=load_stream_data):
+    def __init__(self,
+                 host=None,
+                 data=None,
+                 exchange='rabbitanalytics1-stream-exchange',
+                 routing_key='anomalyall'):
         super(FireHosePublisher, self).__init__()
         self.parameters = pika.ConnectionParameters(host=host,
                                                     credentials=pika.PlainCredentials('data-user', 'data-password'))
         self.channel = None
-        self.callback = callback
         self.conn_retry_count = 0
+        self.data = data
+        self.exchange = exchange
+        self.routing_key = routing_key
+        self._connection = None
