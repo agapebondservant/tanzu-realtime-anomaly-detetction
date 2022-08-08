@@ -4,8 +4,8 @@ import numpy as np
 import logging
 import warnings
 import traceback
-from app.main.python import main
-from app.main.python import config
+from app.main.python import main, config
+import json
 
 ########################
 # Set-up
@@ -118,7 +118,8 @@ def render_stats_dashboard(sample_freq):
             stats = main.anomaly_detection_stats(sample_freq)
 
         if stats is not None:
-            stat = stats.loc[-1]
+            stat = json.loads(stats.iloc[-1].to_json())
+            logging.info(f"stat: {stat} {stats}")
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric('Negative posts in last minute', stat['1min'], delta=f"{stat['1min']}", delta_color="inverse")

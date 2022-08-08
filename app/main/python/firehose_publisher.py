@@ -72,10 +72,9 @@ class FireHosePublisher(threading.Thread):
         self.connect(self._connection)
 
     def send_data(self, data_to_send):
+        logging.info('In send_data...')
         self.data = data_to_send
-        logging.info('was in send_data...')
         if self._connection is not None:
-            logging.info('base connection not null')
             self.on_connected(self._connection)
 
     def init_connection(self):
