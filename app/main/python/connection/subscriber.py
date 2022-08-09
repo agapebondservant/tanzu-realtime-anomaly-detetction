@@ -45,33 +45,17 @@ class Subscriber(connection.Connection):
         try:
             self.process_delivery_callback(header, body)
             self.channel = channel
-            self.channel.basic_ack(method.delivery_tag, False)
+            self.channel.basic_ack(method.delivery_tag, True)
         except Exception as e:
             logging.error('Could not complete execution - error occurred: ', exc_info=True)
 
     def process_delivery(self, header, body):
         logging.info(f"Received a message!...{json.loads(body)}")
 
-    def on_channel_closed(self, channel, error):
-        try:
-            logging.error(f'Error while attempting to connect...{error} {channel}')
-            try:
-                self._connection.close() if self._connection.is_closing or self._connection.is_closed else True
-                time.sleep(1)
-            except Exception as e:
-                pass
-
-            # reconnect
-            self._connection = self.init_connection()
-            self.connect(self._connection)
-        except Exception as e:
-            logging.error('Could not complete execution - error occurred: ', exc_info=True)
-            traceback.print_exc()
-
     def __init__(self,
                  host=None,
                  process_delivery_callback=None,
-                 queue='rabbitanalytics1-stream',
+                 queue='rabbitanalytics4-stream',
                  queue_arguments={'x-queue-type': 'stream'},
                  consumer_arguments={},
                  offset=0,

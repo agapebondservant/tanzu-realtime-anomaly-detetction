@@ -16,3 +16,4 @@ watchdog
 mpld3
 streamlit
 pika
+Pillow

@@ -431,7 +431,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
     feature_store.save_artifact(summary, 'anomaly_summary')
 
     # Publish to queue
-    config.stats_publisher.send_data(new_summary)
+    # config.stats_publisher.send_data(new_summary)
 
     return new_summary
 

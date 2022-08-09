@@ -16,8 +16,28 @@ class Connection(threading.Thread):
         self._connection = conn
         self._connection.channel(on_open_callback=lambda ch: self.on_channel_open(ch))
 
-    def on_channel_open(self):
-        pass
+    def on_channel_open(self, _channel):
+        """Called when our channel has opened"""
+        self.channel = _channel
+        self.channel.add_on_close_callback(lambda ch, err: self.on_channel_closed(ch, err))
+        logging.info(f"data type: {type(self.data)} {self.data}")
+
+    def on_channel_closed(self, channel, error):
+        try:
+            logging.error(f'Error while attempting to connect...{error} {channel}')
+            try:
+                if self._connection.is_closing or self._connection.is_closed:
+                    self._connection.ioloop.stop()
+                else:
+                    logging.info('Connection closed, reopening: (%s)', error)
+                    # reconnect
+                    self._connection = self.init_connection()
+                    self.connect(self._connection)
+            except Exception as e:
+                pass
+        except Exception as e:
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
+            traceback.print_exc()
 
     def on_connection_close(self, conn, error):
         logging.error(error)
@@ -54,6 +74,7 @@ class Connection(threading.Thread):
 
     # Connect to RabbitMQ using the default parameters
     def run(self):
+        logging.info("In run method...")
         self._connection = self.init_connection()
         self.connect(self._connection)
 
@@ -63,3 +84,4 @@ class Connection(threading.Thread):
         super(Connection, self).__init__()
         self._connection = None
         self.conn_retry_count = 0
+        self.channel = None

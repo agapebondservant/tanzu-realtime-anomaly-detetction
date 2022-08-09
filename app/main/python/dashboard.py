@@ -26,6 +26,16 @@ html, body, [class*="css"]{
 #tanzu-realtime-anomaly-detection-demo{
    color: #6a6161;
 }
+.blinking {
+  animation: blinker 1s linear infinite;
+  background: url('https://github.com/agapebondservant/tanzu-realtime-anomaly-detetction/blob/main/app/assets/clock.png?raw=true') no-repeat right;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -40,6 +50,8 @@ with tab1:
     timeframe = st.selectbox(
         'Select time period',
         ('day', 'hour', 'week'))
+    placeholder = st.empty()
+    placeholder.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
     dashboard_widgets.render_trends_dashboard(timeframe)
 
 # Posts
@@ -62,4 +74,5 @@ with tab3:
     timeframe2 = st.selectbox(
         'Select a time period',
         ('day', 'hour', 'week'))
+    placeholder.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
     dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)

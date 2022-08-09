@@ -29,6 +29,7 @@ RUN apt-get update \
 COPY app ./app
 COPY artifacts ./artifacts
 COPY data ./data
+COPY assets ./assets
 EXPOSE 8501
 
 ENV PYTHONPATH /parent

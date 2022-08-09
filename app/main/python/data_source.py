@@ -8,14 +8,8 @@ from datetime import datetime, timedelta
 from app.main.python import csv_data
 
 
-def get_data_source_mode():
-    return 'csv'
-
-
-def get_data(data=None, offset_from_end=None):
-    mode = get_data_source_mode()
-    if mode == 'csv':
-        return csv_data.get_data(data, offset_from_end)
+def get_data(begin_offset=None, end_offset=None):
+    return csv_data.get_data(begin_offset, end_offset)
 
 
 def get_arima_model_results():
