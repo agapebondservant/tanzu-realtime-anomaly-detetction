@@ -8,6 +8,7 @@ import json
 from datetime import datetime, timedelta
 import pytz
 from app.main.python.connection import publisher
+from utils import utils
 
 
 class Firehose(publisher.Publisher):
@@ -17,31 +18,25 @@ class Firehose(publisher.Publisher):
         super().on_channel_open(_channel)
 
         if self.data is not None:
-            orientation = 'records' if any(self.data.index.duplicated()) else 'index'
-            for i in self.data.index:
-                msg = self.data.loc[i].to_json(orient=orientation)
+            for i, row in self.data.iterrows():
+                msg = utils.dataframe_record_as_json_string(row, i, 'records')
                 self.channel.basic_publish('rabbitanalytics4-stream-exchange', 'anomaly.all', msg,
                                            pika.BasicProperties(content_type='text/plain',
                                                                 delivery_mode=pika.DeliveryMode.Persistent,
                                                                 timestamp=int(i.timestamp())))
-            self.publish_random_data(self.data)
+            self.simulate_firehose_data(self.data)
 
-    def publish_random_data(self, data):
+    def simulate_firehose_data(self, data):
         # while True:
-        orientation = 'records' if any(self.data.index.duplicated()) else 'index'
         lag_adjustment = pytz.utc.localize(datetime.now()) - data.index.min()
         new_data = data.copy()
         new_data.set_index(new_data.index + lag_adjustment, inplace=True)
-        for i in new_data.index:
-            msg = new_data.loc[i].to_json(orient=orientation)
+        for i, row in new_data.iterrows():
+            msg = row.to_json(orient='records')
             self.channel.basic_publish('rabbitanalytics4-stream-exchange', 'anomaly.all', msg,
                                        pika.BasicProperties(content_type='text/plain',
-                                                            delivery_mode=pika.DeliveryMode.Persistent))
-
-            # Publish notification to topic exchange that new data was published
-            self.channel.basic_publish('rabbitanalytics4-exchange', 'anomaly.datapublished', msg,
-                                       pika.BasicProperties(content_type='text/plain',
-                                                            delivery_mode=pika.DeliveryMode.Persistent))
+                                                            delivery_mode=pika.DeliveryMode.Persistent,
+                                                            timestamp=int(i.timestamp())))
 
     def __init__(self,
                  host=None,

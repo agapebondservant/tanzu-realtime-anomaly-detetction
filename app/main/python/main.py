@@ -10,12 +10,11 @@ from pylab import rcParams
 from datetime import datetime, timedelta
 from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 from sklearn.preprocessing import StandardScaler
-# from app.main.python.firehose_publisher import FireHosePublisher
-# from app.main.python.firehose_subscriber import FireHoseSubscriber
-from app.main.python.connection.publisher import Publisher
-from app.main.python.connection.subscriber import Subscriber
 from app.main.python.publishers.firehose import Firehose
+from app.main.python.subscribers.dashboard_monitor import DashboardMonitor
+from app.main.python.subscribers.monitor_thread import MonitorThread
 from app.main.python import config, csv_data
+from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
 
 ########################
 # Set-up
@@ -239,21 +238,11 @@ def initialize():
         config.firehose = Firehose(host=config.host, data=csv_data.get_data())
         config.firehose.start()
 
-    # if config.publisher is None:
-    #     config.publisher = Publisher(host=config.host, data=csv_data.get_data())
-    #     config.publisher.start()
-    # if config.subscriber is None:
-    #    config.subscriber = Subscriber(host=config.host,
-    #                                   process_delivery_callback=anomaly_detection.process_stats,
-    #                                   # stream_callback,
-    #                                   queue='rabbitanalytics4-stats')
-    #    config.subscriber.start()
+    if config.firehose_monitor_thread is None:
+        config.firehose_monitor_thread = MonitorThread(interval=config.dashboard_refresh_interval,
+                                                       monitor=FirehoseMonitor(host=config.host))
+        config.firehose_monitor_thread.start()
 
-    # if config.stats_publisher is None:
-    #    config.stats_publisher = Publisher(host=config.host,
-    #                                       routing_key='anomaly.stats.all',
-    #                                       exchange='rabbitanalytics4-exchange')
-    #    config.stats_publisher.start()
-    # if config.stats_subscriber is None:
-    #     config.stats_subscriber = FireHoseSubscriber(host=config.host)
-    #    config.stats_subscriber.start()
+    if config.dashboard_monitor is None:
+        config.dashboard_monitor = DashboardMonitor(host=config.host, queue=config.dashboard_queue)
+        config.dashboard_monitor.start()

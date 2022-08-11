@@ -5,6 +5,7 @@ import logging
 import traceback
 import threading
 import json
+import functools
 from app.main.python.connection import connection
 
 
@@ -40,17 +41,28 @@ class Subscriber(connection.Connection):
             logging.error('Could not complete execution - error occurred: ', exc_info=True)
             traceback.print_exc()
 
-    def handle_delivery(self, channel, method, header, body):
+    def handle_delivery(self, _channel, method, header, body):
         """Called when we receive a message from RabbitMQ"""
         try:
             self.process_delivery_callback(header, body)
-            self.channel = channel
+            self.channel = _channel
             self.channel.basic_ack(method.delivery_tag, True)
+            # cb = functools.partial(self.ack_message, self.channel, method.delivery_tag, True)
+            # self.connection.add_callback_threadsafe(cb)
         except Exception as e:
             logging.error('Could not complete execution - error occurred: ', exc_info=True)
 
     def process_delivery(self, header, body):
-        logging.info(f"Received a message!...{json.loads(body)}")
+        pass
+
+    def ack_message(self, _channel, delivery_tag, multiple):
+        """Note that `ch` must be the same pika channel instance via which
+        the message being ACKed was retrieved (AMQP protocol constraint).
+        """
+        if _channel.is_open:
+            _channel.basic_ack(delivery_tag, multiple)
+        else:
+            pass
 
     def __init__(self,
                  host=None,

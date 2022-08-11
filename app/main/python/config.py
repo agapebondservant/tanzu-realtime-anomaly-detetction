@@ -1,15 +1,12 @@
 host = 'rabbitanalytics4.streamlit.svc.cluster.local'
-publisher = None
-subscriber = None
 
-stats_publisher = None
-stats_subscriber = None
-
-dashboard_host = 'rabbitanalytics4.streamlit.svc.cluster.local'
-dashboard_publisher = None
-dashboard_subscriber = None
+dashboard_monitor = None
 
 firehose = None
+firehose_monitor_thread = None
 
-dashboard_refresh_interval = 15
+dashboard_refresh_interval = 30
 dashboard_refresh_window_size_in_minutes = 60
+dashboard_queue = 'rabbitanalytics4-dashboard'
+
+data_published_msg = 'DATA_PUBLISHED'

@@ -17,8 +17,7 @@ def save_artifact(artifact, artifact_name):
         cache[artifact_name] = artifact
         save_to_backend(artifact, artifact_name)
     except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
 
 
 ########################
@@ -31,8 +30,7 @@ def load_artifact(artifact_name):
             artifact = load_from_backend(artifact_name)
         return artifact
     except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
 
 
 ########################
@@ -45,8 +43,7 @@ def save_to_backend(artifact, artifact_name):
         joblib.dump(artifact, artifact_handle)
         artifact_handle.close()
     except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
 
 
 ########################
@@ -59,8 +56,7 @@ def load_from_backend(artifact_name):
         artifact_handle = open(f"app/artifacts/{artifact_name}.pkl", "rb")
         artifact = joblib.load(artifact_handle)
     except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
     finally:
         return artifact
 
