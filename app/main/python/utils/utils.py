@@ -17,9 +17,16 @@ def get_current_datetime():
 
 
 def append_json_list_to_dataframe(df, json_record):
+    df_data = json_record[1:]
+    df_index = json_record[0]
+    df_columns = df.columns
+
+    num_columns_to_append = len(df.columns) - len(json_record[1:])
+    df_data += [None]*num_columns_to_append
+
     df2 = pd.DataFrame(
-        data={df.columns[col]: json_record[1:][col] for col in range(len(df.columns))},
-        index=[json_record[0]])
+        data={df.columns[col]: df_data[col] for col in range(len(df_columns))},
+        index=[df_index])
     return pd.concat([df, df2])
 
 
