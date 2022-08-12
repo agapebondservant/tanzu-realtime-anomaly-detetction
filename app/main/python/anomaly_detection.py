@@ -95,8 +95,20 @@ def filter_data(df, window):
 
 def prepare_data(df, sample_frequency, extvars):
     logging.info("Preparing data...")
+
+    # First perform data cleansing
+    df = cleanse_data(df)
+
     data_buffers = extract_features(df, sample_frequency, extvars)
     return data_buffers
+
+
+#######################################
+# Perform data cleansing
+#######################################
+def cleanse_data(df):
+    logging.info("Cleansing data...")
+    return df
 
 
 #######################################
@@ -191,7 +203,7 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, actual_negative_sentiments,
                                   timeframe='day'):
     logging.info("Plotting positive/negative trends...")
-    start_date, end_date = total_sentiments['sentiment'].index.max(), total_sentiments[
+    end_date, start_date = total_sentiments['sentiment'].index.max(), total_sentiments[
         'sentiment'].index.max() - timedelta(
         hours=get_time_lags(timeframe))
 
@@ -325,8 +337,6 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, color='orange', label=f"ARIMA {stepwise_fit.order} Predictions")
-    # ax.hlines(median(fitted_values_actual), xmin=start_date, xmax=end_date, linestyles='--',
-    #          colors='blue')
     ax.plot(fitted_values_actual[-int(sliding_window_size):].loc[model_arima_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies"
             )

@@ -21,14 +21,24 @@ def append_json_list_to_dataframe(df, json_record):
     df_index = json_record[0]
     df_columns = df.columns
 
-    num_columns_to_append = len(df.columns) - len(json_record[1:])
-    df_data += [None]*num_columns_to_append
+    # num_columns_to_append = len(df.columns) - len(json_record[1:])
+    # df_data += [None]*num_columns_to_append
+
+    if 'sentiment' in list(df_columns):
+        sentiment_idx = list(df_columns).index('airline_sentiment')
+        df_data += [{'positive': 1, 'negative': -1, 'neutral': 0}.get(df_data[sentiment_idx])]
 
     df2 = pd.DataFrame(
         data={df.columns[col]: df_data[col] for col in range(len(df_columns))},
         index=[df_index])
+    pd.to_datetime(df2.index, format='%Y-%m-%d %H:%M:%S%z', utc=True, errors='coerce')
+
     return pd.concat([df, df2])
 
 
 def index_as_datetime(data):
-    return pd.to_datetime(data.index, format='%Y-%m-%d %H:%M:%S%z', utc=True)
+    return pd.to_datetime(data.index, format='%Y-%m-%d %H:%M:%S%z', utc=True, errors='coerce')
+
+
+def datetime_as_offset(dt):
+    return int(dt.timestamp())

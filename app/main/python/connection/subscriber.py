@@ -11,9 +11,8 @@ from app.main.python.connection import connection
 
 class Subscriber(connection.Connection):
 
-    def read_data(self, offset=0):
-        if self.queue_arguments.get('x-queue-type') == 'stream':
-            self.consumer_arguments['x-stream-offset'] = offset
+    def read_data(self, offset=None):
+        self.set_offets(offset)
         if self._connection is not None:
             self.on_connected(self, self._connection)
 
@@ -64,13 +63,18 @@ class Subscriber(connection.Connection):
         else:
             pass
 
+    def set_offets(self, offset=None):
+        self.offset = offset
+        if self.queue_arguments.get('x-queue-type') == 'stream' and offset is not None:
+            self.consumer_arguments['x-stream-offset'] = offset
+
     def __init__(self,
                  host=None,
                  process_delivery_callback=None,
                  queue='rabbitanalytics4-stream',
                  queue_arguments={'x-queue-type': 'stream'},
                  consumer_arguments={},
-                 offset=0,
+                 offset=None,
                  prefetch_count=1000,
                  conn_retry_count=0):
         super(Subscriber, self).__init__()
@@ -81,8 +85,7 @@ class Subscriber(connection.Connection):
         self.queue = queue
         self.queue_arguments = queue_arguments
         self.consumer_arguments = consumer_arguments
-        self.offset = offset
-        self.consumer_arguments['x-stream-offset'] = offset
+        self.set_offets(offset)
         self.prefetch_count = prefetch_count
         self.conn_retry_count = conn_retry_count
         self.channel = None

@@ -18,13 +18,14 @@ def get_data(begin_offset=None, end_offset=None):
         csv_data_source_path = 'app/data/airlinetweets.csv'
         data = pd.read_csv(csv_data_source_path, parse_dates=['tweet_created'],
                            index_col=['tweet_created']).sort_index()
+        # Adjust timestamps to align with today's date for demo purposes
+        lag_adjustment = utils.get_current_datetime() - data.index.max()
+        data.set_index(data.index + lag_adjustment, inplace=True)
+
+        logging.info(f"original offset...{utils.datetime_as_offset(data.index.max())}")
+        feature_store.save_offset('original', utils.datetime_as_offset(data.index.max()))
     else:
         data.index = utils.index_as_datetime(data)
-
-    # Adjust timestamps to align with today's date for demo purposes
-    # logging.info(f"Data is {data} AND {data.index} AND {type(data.index)}")
-    lag_adjustment = utils.get_current_datetime() - data.index.max()
-    data.set_index(data.index + lag_adjustment, inplace=True)
 
     if begin_offset is None and end_offset is None:
         return data

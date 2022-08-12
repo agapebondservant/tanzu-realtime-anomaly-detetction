@@ -18,10 +18,11 @@ warnings.filterwarnings('ignore')
 #############################
 def show_trends(timeframe):
     try:
-        logging.info('Showing trends in Dashboard...')
-        fig = main.anomaly_detection_show_trends('10min', timeframe)
-        st.pyplot(fig)
-        logging.info('Trend dashboard rendered.')
+        with st.spinner('Loading Trends...'):
+            logging.info('Showing trends in Dashboard...')
+            fig = main.anomaly_detection_show_trends('10min', timeframe)
+            st.pyplot(fig)
+            logging.info('Trend dashboard rendered.')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
@@ -37,14 +38,15 @@ def show_anomalies(timeframe):
         sample_freq = '10min'
 
         # Plot anomalies
-        logging.info('Showing anomalies in Dashboard...')
-        fig = main.anomaly_detection_training_pipeline(sample_freq, timeframe)
-        st.pyplot(fig)
+        with st.spinner('Loading Trend with Anomalies...'):
+            logging.info('Showing anomalies in Dashboard...')
+            fig = main.anomaly_detection_training_pipeline(sample_freq, timeframe)
+            st.pyplot(fig)
 
-        # Show Stats
-        render_stats_dashboard(sample_freq)
+            # Show Stats
+            render_stats_dashboard(sample_freq)
 
-        logging.info('Anomalies dashboard rendered.')
+            logging.info('Anomalies dashboard rendered.')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
