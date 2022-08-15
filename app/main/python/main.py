@@ -238,10 +238,9 @@ def initialize():
         config.firehose = Firehose(host=config.host, data=csv_data.get_data())
         config.firehose.start()
 
-    if config.firehose_monitor_thread is None:
-        config.firehose_monitor_thread = MonitorThread(interval=config.dashboard_refresh_interval,
-                                                       monitor=FirehoseMonitor(host=config.host))
-        config.firehose_monitor_thread.start()
+    if config.firehose_monitor is None:
+        config.firehose_monitor = FirehoseMonitor(host=config.host)
+        config.firehose_monitor.start()
 
     if config.dashboard_monitor is None:
         config.dashboard_monitor = DashboardMonitor(host=config.host, queue=config.dashboard_queue)

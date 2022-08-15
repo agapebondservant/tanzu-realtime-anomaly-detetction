@@ -7,12 +7,13 @@ import threading
 import json
 import functools
 from app.main.python.connection import connection
+from app.main.python import csv_data, feature_store, config
 
 
 class Subscriber(connection.Connection):
 
     def read_data(self, offset=None):
-        self.set_offets(offset)
+        self.set_offset(offset)
         if self._connection is not None:
             self.on_connected(self, self._connection)
 
@@ -63,7 +64,7 @@ class Subscriber(connection.Connection):
         else:
             pass
 
-    def set_offets(self, offset=None):
+    def set_offset(self, offset=None):
         self.offset = offset
         if self.queue_arguments.get('x-queue-type') == 'stream' and offset is not None:
             self.consumer_arguments['x-stream-offset'] = offset
@@ -85,7 +86,7 @@ class Subscriber(connection.Connection):
         self.queue = queue
         self.queue_arguments = queue_arguments
         self.consumer_arguments = consumer_arguments
-        self.set_offets(offset)
+        self.set_offset(offset)
         self.prefetch_count = prefetch_count
         self.conn_retry_count = conn_retry_count
         self.channel = None

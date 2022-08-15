@@ -22,18 +22,19 @@ class FirehoseMonitor(subscriber.Subscriber):
                  queue_arguments={'x-queue-type': 'stream'},
                  consumer_arguments={},
                  offset=None,
-                 prefetch_count=100,
+                 prefetch_count=1000,
                  conn_retry_count=0):
         super(FirehoseMonitor, self).__init__(host, process_delivery_callback, queue,
                                               queue_arguments, consumer_arguments, offset, prefetch_count,
                                               conn_retry_count)
         self.new_data = None
-        self.offset = feature_store.load_offset('firehose_monitor') or feature_store.load_offset('original') or 0
 
     def process_delivery(self, header, body):
+        # update the offset
+        self.set_offset(feature_store.load_offset('firehose_monitor') or feature_store.load_offset('original') or 0)
+
         # Only make updates to the dataset when a processing offset has been initialized
-        logging.info(f"in process_delivery: the current offset is {self.offset}")
-        if self.offset > 0:
+        if feature_store.load_offset('original') is not None and self.offset > feature_store.load_offset('original'):
             # Get existing data
             old_data = csv_data.get_data()
             if old_data is None or old_data.empty:
@@ -53,14 +54,13 @@ class FirehoseMonitor(subscriber.Subscriber):
             feature_store.save_artifact(data, '_data')
 
             # Save the new offset
-            self.offset = utils.datetime_as_offset(data.index.max())
-            # int(data.index.max().timestamp())
+            # self.set_offset(utils.datetime_as_offset(data.index.max()))
             feature_store.save_offset('firehose_monitor', self.offset)
 
-        # publish a notification
-        logging.info("sending message to notifier...")
-        notify_publisher = notifier.Notifier(host=config.host, data=config.data_published_msg)
-        notify_publisher.start()
+            # Reset new_data
+            self.new_data = None
 
-        # Reset new_data
-        self.new_data = None
+            # publish a notification
+            logging.info("sending message to notifier...")
+            notify_publisher = notifier.Notifier(host=config.host, data=config.data_published_msg)
+            notify_publisher.start()
