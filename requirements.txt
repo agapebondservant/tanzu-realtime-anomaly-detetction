@@ -17,3 +17,4 @@ mpld3
 streamlit==1.11.1
 pika
 Pillow
+streamlit-autorefresh

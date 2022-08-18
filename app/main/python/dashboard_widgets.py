@@ -6,7 +6,6 @@ import warnings
 import traceback
 from app.main.python import main, config
 import json
-from app.main.python.utils.utils import use_interrupt
 
 ########################
 # Set-up
@@ -77,7 +76,6 @@ def show_sentiment(text):
 #############################
 # Render Anomaly Dashboard
 #############################
-@use_interrupt
 def render_anomaly_detection_dashboard(timeframe):
     try:
         logging.info('Start rendering anomaly detection widgets...')
@@ -90,7 +88,6 @@ def render_anomaly_detection_dashboard(timeframe):
 #############################
 # Render Trends Dashboard
 #############################
-@use_interrupt
 def render_trends_dashboard(timeframe):
     try:
         logging.info('Start rendering trends dashboard widgets...')
@@ -104,7 +101,6 @@ def render_trends_dashboard(timeframe):
 # Render Sentiment Analysis Dashboard
 #############################
 
-@use_interrupt
 def render_sentiment_analysis_dashboard():
     try:
         logging.info('Start sentiment analysis training...')

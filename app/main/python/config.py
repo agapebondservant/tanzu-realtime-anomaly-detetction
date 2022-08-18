@@ -8,7 +8,7 @@ firehose = None
 firehose_monitor = None
 firehose_monitor_thread = None
 
-dashboard_refresh_interval = 30
+dashboard_refresh_interval = 15
 dashboard_refresh_window_size_in_minutes = 60
 dashboard_queue = 'rabbitanalytics4-dashboard'
 
