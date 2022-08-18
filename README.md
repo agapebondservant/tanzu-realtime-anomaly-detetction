@@ -8,7 +8,8 @@ NOTE:
 1. [Prepare environment](#prepare-env)
 2. [Install Streamlit](#install-streamlit)
 3. [Deploy Postgres Instance](#deploy-anomaly-postgres)
-4. [Run Methods](#run-methods)
+4. [Setup Argo Workflows](#setup-argo-workflows)
+5. [Run Methods](#run-methods)
 
 #### Prepare environment <a name="prepare-env"/>
 * Set up namespace and secrets:
@@ -59,6 +60,14 @@ kubectl apply -f resources/postgres/postgres.yaml -n rt-analytics
 
 * Import data:
 ```
+
+```
+
+#### Setup Argo Workflows <a name="setup-argo-workflows"/>
+* Setup Argo Workflows:
+```
+kubectl create ns argo-events
+kubectl apply -f resources/argo/amqp-event-source.yaml -n argo-events
 
 ```
 

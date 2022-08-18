@@ -1,6 +1,8 @@
 import joblib
 import logging
 import traceback
+import streamlit as st
+import os
 
 ########################
 # Cache
@@ -14,7 +16,7 @@ cache = {}
 ########################
 def save_artifact(artifact, artifact_name):
     try:
-        cache[artifact_name] = artifact
+        save_to_cache(artifact, artifact_name)
         save_to_backend(artifact, artifact_name)
     except Exception as e:
         logging.debug('Could not complete execution - error occurred: ', exc_info=True)
@@ -25,7 +27,7 @@ def save_artifact(artifact, artifact_name):
 ########################
 def load_artifact(artifact_name):
     try:
-        artifact = cache.get(artifact_name)
+        artifact = load_from_cache(artifact_name)
         if artifact is None:
             artifact = load_from_backend(artifact_name)
         return artifact
@@ -64,12 +66,29 @@ def load_from_backend(artifact_name):
 ########################
 # Save offset
 ########################
-def save_offset(offset_name, offset):
-    cache[f'{offset_name}_offset'] = offset
+def save_offset(offset, offset_name):
+    save_artifact(offset, f'{offset_name}_offset')
 
 
 ########################
 # Load offset
 ########################
 def load_offset(offset_name):
-    return cache.get(offset_name)
+    return load_artifact(f'{offset_name}_offset')
+
+
+########################
+# Save to cache
+########################
+def save_to_cache(artifact, artifact_name):
+    cache[artifact_name] = artifact
+    # st.session_state[artifact_name] = artifact
+
+
+########################
+# Load offset
+# TODO: Use distributed backend like Ray/Dask/Gemfire
+########################
+def load_from_cache(artifact_name):
+    # return st.session_state[artifact_name]
+    return cache.get(artifact_name)

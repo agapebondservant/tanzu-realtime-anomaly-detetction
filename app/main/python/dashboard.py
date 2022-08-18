@@ -9,9 +9,15 @@ from app.main.python import dashboard_widgets
 import mpld3
 import streamlit.components.v1 as components
 from app.main.python import main
+import time
+import threading
+from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
 
 # Initializations
 main.initialize()
+st.set_option('deprecation.showPyplotGlobalUse', False)
+st.session_state.dashboard_global_event = threading.Event()
+
 
 def show_sentiment(newpost):
     print(newpost)
@@ -43,36 +49,59 @@ st.header('Tanzu/Vmware Realtime Anomaly Detection Demo')
 
 st.text('Near-realtime showcase of sentiment-based anomaly detection using Vmware RabbitMQ')
 
-tab1, tab2, tab3 = st.tabs(["Home", "Feedback", "Anomalies"])
+placeholder_tab1, placeholder_tab2, placeholder_tab3 = st.empty(), st.empty(), st.empty()
 
-# Charts
-with tab1:
-    timeframe = st.selectbox(
-        'Select time period',
-        ('day', 'hour', 'week'))
-    placeholder = st.empty()
-    placeholder.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
-    dashboard_widgets.render_trends_dashboard(timeframe)
+tab1, tab2, tab3 = placeholder.tabs(["Home", "Feedback", "Anomalies"])
 
-# Posts
-with tab2:
-    sentiment = 'neutral'
-    sentiment_mappings = {'positive': 'color:green', 'negative': 'color:red', 'neutral': 'visibility:hidden'}
+while True:
+    # Charts
+    with tab1:
+        placeholder_tab1 = st.empty()
+        with placeholder_tab1.container():
+            logging.info("Refreshing dashboard...")
 
-    st.write("Enter your thoughts:")
-    post = st.text_input('Feedback', '''''')
-    placeholder = st.empty()
+            timeframe = st.selectbox(
+                'Select time period', ('day', 'hour', 'week'), key=f"select_time{time.time()}1")
+            st.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
 
-    if len(post) != 0:
-        sentiment = dashboard_widgets.show_sentiment(post)
-        placeholder.markdown(f"Sentiment:<br/><span style=font-size:1.6em;{sentiment_mappings[sentiment]}>{sentiment}</span>", unsafe_allow_html=True)
+            dashboard_widgets.render_trends_dashboard(timeframe)
 
-    dashboard_widgets.render_sentiment_analysis_dashboard()
+    # Posts
+    with tab2:
+        placeholder_tab2 = st.empty()
+        with placeholder_tab2.container():
 
-# Anomalies
-with tab3:
-    timeframe2 = st.selectbox(
-        'Select a time period',
-        ('day', 'hour', 'week'))
-    placeholder.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
-    dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)
+            sentiment = 'neutral'
+            sentiment_mappings = {'positive': 'color:green', 'negative': 'color:red', 'neutral': 'visibility:hidden'}
+
+            st.write("Enter your thoughts:")
+            post = st.text_input('Feedback', '''''', key=f"text_post{time.time()}1")
+
+            if len(post) != 0:
+                sentiment = dashboard_widgets.show_sentiment(post)
+                st.markdown(
+                    f"Sentiment:<br/><span style=font-size:1.6em;{sentiment_mappings[sentiment]}>{sentiment}</span>",
+                    unsafe_allow_html=True)
+
+            dashboard_widgets.render_sentiment_analysis_dashboard()
+
+    # Anomalies
+    with tab3:
+        placeholder_tab3 = st.empty()
+        with placeholder_tab3.container():
+
+            timeframe2 = st.selectbox(
+                'Select a time period', ('day', 'hour', 'week'), key=f"select_time{time.time()}2")
+            st.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
+
+            dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)
+
+    # time.sleep(15)
+    st.session_state.dashboard_global_event.wait(15)
+    placeholder_tab1.empty()
+    placeholder_tab2.empty()
+    placeholder_tab3.empty()
+
+
+
+

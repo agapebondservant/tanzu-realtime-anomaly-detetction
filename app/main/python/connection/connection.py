@@ -5,6 +5,11 @@ import logging
 import traceback
 import threading
 import json
+from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
+from app.main.python.utils import utils
+
+
+threading.excepthook = utils.exception_handler
 
 
 class Connection(threading.Thread):
@@ -85,3 +90,4 @@ class Connection(threading.Thread):
         self._connection = None
         self.conn_retry_count = 0
         self.channel = None
+        add_script_run_ctx(self)

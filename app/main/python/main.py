@@ -15,6 +15,10 @@ from app.main.python.subscribers.dashboard_monitor import DashboardMonitor
 from app.main.python.subscribers.monitor_thread import MonitorThread
 from app.main.python import config, csv_data
 from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
+from app.main.python.publishers import notifier
+from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
+import threading
+import time
 
 ########################
 # Set-up
@@ -234,15 +238,19 @@ def anomaly_detection_stats(sample_frequency):
 # Initialize MQ connections
 #############################
 def initialize():
+    if config.firehose_monitor is None:
+        config.firehose_monitor = FirehoseMonitor(host=config.host)
+        config.firehose_monitor.start()
+
     if config.firehose is None:
         config.firehose = Firehose(host=config.host, data=csv_data.get_data())
         config.firehose.start()
 
-    if config.firehose_monitor_thread is None:
-        config.firehose_monitor_thread = MonitorThread(interval=config.dashboard_refresh_interval,
-                                                       monitor=FirehoseMonitor(host=config.host))
-        config.firehose_monitor_thread.start()
-
     if config.dashboard_monitor is None:
         config.dashboard_monitor = DashboardMonitor(host=config.host, queue=config.dashboard_queue)
         config.dashboard_monitor.start()
+
+    # if config.dashboard_notifier_thread is None:
+    #    config.dashboard_notifier_thread = MonitorThread(interval=config.dashboard_refresh_interval,
+    #                                                     monitor=notifier.Notifier(host=config.host, data=config.data_published_msg))
+    #    config.dashboard_notifier_thread.start()

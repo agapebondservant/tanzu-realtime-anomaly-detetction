@@ -1,16 +1,19 @@
 import threading
-from app.main.python import feature_store
+import logging
+from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
+from app.main.python.utils import utils
 
 
-class MonitorThread(threading.Timer):
+threading.excepthook = utils.exception_handler
+
+
+class MonitorThread(threading.Thread):
     def __init__(self,
                  interval=30,
                  monitor: threading.Thread = None,
-                 monitor_args=None,
-                 offset=None,
-                 offset_name='firehose_monitor'):
-        super(MonitorThread, self).__init__(interval, monitor.start, monitor_args)
-        self.offset = offset
-        self.offset_name = offset_name
-        feature_store.save_offset(self.offset, self.offset_name)
-
+                 monitor_args=()):
+        super(MonitorThread, self).__init__(target=self.repeat, args=monitor_args)
+        self.interval = interval
+        self.monitor = monitor
+        self.monitor_args = monitor_args
+        add_script_run_ctx(self)

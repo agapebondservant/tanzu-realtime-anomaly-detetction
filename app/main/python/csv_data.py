@@ -19,16 +19,15 @@ def get_data(begin_offset=None, end_offset=None):
         data = pd.read_csv(csv_data_source_path, parse_dates=['tweet_created'],
                            index_col=['tweet_created']).sort_index()
         # Adjust timestamps to align with today's date for demo purposes
-        lag_adjustment = utils.get_current_datetime() - data.index.max()
+        current_dt = utils.get_current_datetime()
+        lag_adjustment = current_dt - data.index.max()
         data.set_index(data.index + lag_adjustment, inplace=True)
 
-        logging.info(f"original offset...{utils.datetime_as_offset(data.index.max())}")
-        feature_store.save_offset('original', utils.datetime_as_offset(data.index.max()))
+        # Store the last published date as the offset
+        last_published_date = current_dt
+        utils.store_global_offset(last_published_date)
     else:
         data.index = utils.index_as_datetime(data)
-
-    if begin_offset is None and end_offset is None:
-        return data
 
     if begin_offset is not None:
         # Fetch new rows starting from after the begin offset

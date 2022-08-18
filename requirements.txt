@@ -14,6 +14,6 @@ scipy
 plotly
 watchdog
 mpld3
-streamlit
+streamlit==1.11.1
 pika
 Pillow

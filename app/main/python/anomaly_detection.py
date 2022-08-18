@@ -4,6 +4,7 @@
 import pandas as pd
 import numpy as np
 import logging
+import streamlit as st
 from statsmodels.tsa.seasonal import seasonal_decompose
 from pylab import rcParams
 from datetime import datetime
@@ -39,6 +40,7 @@ import pytz
 import math
 import json
 from app.main.python import feature_store, data_source, config
+from app.main.python.utils import utils
 
 
 ########################################################################################################################
@@ -203,9 +205,10 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, actual_negative_sentiments,
                                   timeframe='day'):
     logging.info("Plotting positive/negative trends...")
-    end_date, start_date = total_sentiments['sentiment'].index.max(), total_sentiments[
-        'sentiment'].index.max() - timedelta(
-        hours=get_time_lags(timeframe))
+    # Set start_date, end_date
+    end_date = utils.get_current_datetime()
+    start_date = end_date - timedelta(hours=get_time_lags(timeframe))
+    marker_date = feature_store.load_offset('original_datetime')
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
@@ -220,6 +223,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
     ax.hlines(actual_negative_sentiments['sentiment'].median(), xmin=start_date, xmax=end_date, linestyles='--',
               colors='orange')
     ax.set_ylabel('Number of tweets', fontsize=14)
+    ax.axvspan(marker_date, end_date, alpha=0.5, color='purple')
     ax.legend()
 
     return fig

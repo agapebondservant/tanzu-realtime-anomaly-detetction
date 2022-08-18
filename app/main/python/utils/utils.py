@@ -3,6 +3,11 @@ from datetime import datetime
 import pytz
 import pandas as pd
 import logging
+import traceback
+import functools
+from app.main.python import feature_store, config
+import streamlit as st
+import threading
 
 
 def dataframe_record_as_json_string(row, date_index, orientation):
@@ -42,3 +47,34 @@ def index_as_datetime(data):
 
 def datetime_as_offset(dt):
     return int(dt.timestamp())
+
+
+def epoch_as_datetime(epoch_time):
+    return datetime.utcfromtimestamp(epoch_time).replace(tzinfo=pytz.utc)
+
+
+def store_global_offset(dt):
+    offset = datetime_as_offset(dt)
+    logging.info(f"saving original offset...{offset}")
+
+    # save offset to global store
+    feature_store.save_offset(offset, 'original')
+    feature_store.save_offset(dt, 'original_datetime')
+
+    # update all relevant consumers to read from the original offset
+    monitors = [config.firehose_monitor]
+    for monitor in monitors:
+        monitor.read_data(offset)
+
+
+def exception_handler(args):
+    logging.error(f'caught {args.exc_type} with value {args.exc_value} in thread {args.thread}\n')
+    logging.error(traceback.format_exc())
+
+
+def use_interrupt(func):
+    def wrapper(*args):
+        st.session_state.dashboard_global_event.set()
+        func(*args)
+        st.session_state.dashboard_global_event.clear()
+    return wrapper
