@@ -18,10 +18,15 @@ def get_data(begin_offset=None, end_offset=None):
         csv_data_source_path = 'app/data/airlinetweets.csv'
         data = pd.read_csv(csv_data_source_path, parse_dates=['tweet_created'],
                            index_col=['tweet_created']).sort_index()
+
         # Adjust timestamps to align with today's date for demo purposes
         current_dt = utils.get_current_datetime()
         lag_adjustment = current_dt - data.index.max()
         data.set_index(data.index + lag_adjustment, inplace=True)
+
+        # Temporary: Get only the last 7 days
+        # (based on the state of the data in the csv file)
+        # data = data[data.index > (current_dt - timedelta(days=7))]
 
         # Store the last published date as the offset
         last_published_date = current_dt

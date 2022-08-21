@@ -27,7 +27,6 @@ RUN apt-get update \
     " > /root/.streamlit/credentials.toml'
 
 COPY app ./app
-COPY artifacts ./artifacts
 COPY data ./data
 COPY assets ./assets
 EXPOSE 8501

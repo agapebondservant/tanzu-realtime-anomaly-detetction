@@ -54,7 +54,8 @@ from app.main.python.utils import utils
 def ingest_data():
     logging.info('Ingest data...')
     # TODO: retrieve from Rabbit Stream-backed queue
-    return data_source.get_data()
+    df = data_source.get_data()
+    return df
 
 
 #######################################
@@ -86,9 +87,9 @@ def generate_and_save_eda_metrics(df):
 #############################
 # Filter Data
 #############################
-def filter_data(df, window):
+def filter_data(df, head=True, num_rows_head=None, num_rows_tail=None):
     logging.info("Filtering by retrieving only required subset of data...")
-    return df[window:]
+    return utils.filter_rows_by_head_or_tail(df, head, num_rows_head, num_rows_tail)
 
 
 #############################
@@ -215,42 +216,41 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
     fig.suptitle(f"Trending over the past {timeframe}")
     ax.set_xlim([start_date, end_date])
     ax.plot(actual_positive_sentiments['sentiment'],
-            label="Positive Tweets", color="blue")
+            label="Positive Tweets", color="orange")
     ax.plot(actual_negative_sentiments['sentiment'],
-            label="Negative Tweets", color="orange")
+            label="Negative Tweets", color="red")
     ax.hlines(actual_positive_sentiments['sentiment'].median(), xmin=start_date, xmax=end_date, linestyles='--',
-              colors='blue')
-    ax.hlines(actual_negative_sentiments['sentiment'].median(), xmin=start_date, xmax=end_date, linestyles='--',
               colors='orange')
-    ax.set_ylabel('Number of tweets', fontsize=14)
-    ax.axvspan(marker_date, end_date, alpha=0.5, color='purple')
+    ax.hlines(actual_negative_sentiments['sentiment'].median(), xmin=start_date, xmax=end_date, linestyles='--',
+              colors='red')
+    ax.set_ylabel('Number of posts', fontsize=14)
+    ax.axvspan(marker_date, end_date, alpha=0.5, color='gray')
     ax.legend()
 
     return fig
 
 
 #######################################
-# Perform Auto ARIMA Search
+# Perform Auto ARIMA to build model
 #######################################
-def run_auto_arima(actual_negative_sentiments, retrain):
-    logging.info("Running auto_arima...")
+def build_arima_model(actual_negative_sentiments, rebuild):
+    logging.info("Running auto_arima to build ARIMA model...")
     stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
 
-    if retrain is True:
+    if rebuild is True:
         stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
                                   max_q=6,
-                                  seasonal=False, trace=True)
+                                  seasonal=True, trace=True)
 
     feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima')
-    print(f"feature store results is null: {stepwise_fit is None}")
     return stepwise_fit
 
 
 #######################################
-# Build ARIMA Model Results
+# Train ARIMA Model To Generate Results
 #######################################
-def build_arima_model(training_window_size, stepwise_fit, actual_negative_sentiments):
-    logging.info(f"Build ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
+def train_arima_model(training_window_size, stepwise_fit, actual_negative_sentiments):
+    logging.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[-int(training_window_size):]
 
     model_arima_order = stepwise_fit.order
@@ -272,23 +272,25 @@ def build_arima_model(training_window_size, stepwise_fit, actual_negative_sentim
 def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info('Testing ARIMA model...')
 
-    return generate_arima_predictions(sliding_window_size, total_forecast_size, stepwise_fit,
-                                      actual_negative_sentiments)
+    return generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
+                                    actual_negative_sentiments)
 
 
 #######################################
 # Detect Anomalies
 #######################################
-def detect_anomalies(predictions, forecast_window_size, actual_negative_sentiments):
+def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     logging.info('Detecting anomalies...')
 
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
 
-    predictions = predictions.iloc[-int(forecast_window_size):]
+    predictions = predictions.iloc[-int(window_size):]
 
-    df_total = actual_negative_sentiments['sentiment_normalized']
-    mae = median_absolute_error(df_total.iloc[-int(forecast_window_size):], predictions)
+    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[-int(window_size):]
+    # mae = median_absolute_error(df_total.iloc[-int(window_size):], predictions)
+    logging.info(f"anomalies for...{df_total} {predictions}")
+    mae = median_absolute_error(df_total, predictions)
 
     model_arima_results_full = \
         pd.DataFrame({'fittedvalues': predictions, 'median_values': predictions.rolling(4).median().fillna(0)},
@@ -315,12 +317,15 @@ def detect_anomalies(predictions, forecast_window_size, actual_negative_sentimen
 #######################################
 # Plot Trend with Anomalies
 #######################################
-def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, stepwise_fit, extvars,
+def plot_trend_with_anomalies(model_arima_results_full, model_arima_forecasts, sliding_window_size, stepwise_fit,
+                              extvars,
                               timeframe='hour'):
     logging.info("Plot trend with anomalies...")
-    start_date, end_date = \
-        model_arima_results_full.actualvalues.index[-1] - timedelta(hours=get_time_lags(timeframe)), \
-        model_arima_results_full.actualvalues.index[-1]
+    # Set start_date, end_date
+    end_date = utils.get_max_index(model_arima_forecasts)
+    logging.info(f"end date is {end_date} {model_arima_forecasts}")
+    start_date = end_date - timedelta(hours=get_time_lags(timeframe))
+    marker_date = feature_store.load_offset('original_datetime')
 
     standard_scalar = extvars['anomaly_negative_standard_scalar']
     inverse_scaled = pd.DataFrame(
@@ -330,8 +335,11 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
 
     logging.info(f"Inverse scaled values: {inverse_scaled}")
 
-    fitted_values_predicted = inverse_scaled['actualvalues']
-    fitted_values_actual = inverse_scaled['fittedvalues']
+    fitted_values_actual = inverse_scaled['actualvalues']
+    fitted_values_predicted = inverse_scaled['fittedvalues']
+    fitted_values_forecasted = pd.DataFrame(standard_scalar.inverse_transform(pd.DataFrame(model_arima_forecasts)),
+                                            columns=['forecastvalues'],
+                                            index=model_arima_forecasts.index)['forecastvalues']
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
@@ -340,10 +348,12 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
     fig, ax = plt.subplots(figsize=(14, 5))
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
-    ax.plot(fitted_values_predicted, color='orange', label=f"ARIMA {stepwise_fit.order} Predictions")
-    ax.plot(fitted_values_actual[-int(sliding_window_size):].loc[model_arima_results_full['anomaly'] == 1],
-            marker='o', linestyle='None', color='red', label="Anomalies"
-            )
+    ax.plot(fitted_values_predicted, label=f"ARIMA {stepwise_fit.order} Predictions", color='orange')
+    ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=1)
+    ax.fill_between(fitted_values_forecasted.index, fitted_values_forecasted + 2, fitted_values_forecasted - 2,
+                    facecolor="green", alpha=0.3)
+    ax.plot(fitted_values_actual.loc[model_arima_results_full['anomaly'] == 1],
+            marker='o', linestyle='None', color='red', label="Anomalies")
     ax.legend()
     fig.suptitle(f"ARIMA Model: \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
 
@@ -351,24 +361,25 @@ def plot_trend_with_anomalies(model_arima_results_full, sliding_window_size, ste
 
 
 #######################################
-# Generate ARIMA Predictions
+# Generate ARIMA Forecasts
 #######################################
-def generate_arima_predictions(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
+def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
-    df = actual_negative_sentiments.iloc[:-int(total_forecast_size)]
+    df = actual_negative_sentiments
+    # .iloc[:-int(total_forecast_size)]
 
-    # The number of forecasts per sliding window will be the number of AR lags, as ARIMA can't forecast beyond that
-    num_lags = stepwise_fit.order[0]
+    # The number of forecasts per sliding window will be the number of AR or MA lags, as ARIMA can't forecast beyond that
+    num_lags = max(stepwise_fit.order[0], stepwise_fit.order[2])
 
     # The number of sliding windows will be ( total forecast size / num_lags )
-    num_sliding_windows = total_forecast_size / num_lags
+    num_sliding_windows = math.ceil(total_forecast_size / num_lags)
 
     # Initialize the start & end indexes
     end_idx = len(df) - num_lags
 
-    # Get any prior ARIMA predictions
-    predictions = get_prior_arima_predictions()
+    # Get any prior ARIMA forecasts
+    predictions = get_prior_arima_forecasts()
 
     for idx in np.arange(num_sliding_windows):
         # Compute the start & end indexes
@@ -379,22 +390,48 @@ def generate_arima_predictions(sliding_window_size, total_forecast_size, stepwis
         tmp_arima = ARIMA(tmp_data['sentiment_normalized'], order=stepwise_fit.order)
         tmp_model_arima_results = tmp_arima.fit()
         pred = tmp_model_arima_results.forecast(steps=num_lags, typ="levels").rename('forecasted')
-        predictions = predictions.append(pred)
+        predictions = predictions.append(pd.Series(pred))
 
-    # Save predictions
+    # Save forecasts
     # latest_predictions = predictions[predictions.index > actual_negative_sentiments.index[-1]]
-    feature_store.save_artifact(predictions, 'anomaly_arima_predictions')
+    feature_store.save_artifact(predictions, 'anomaly_arima_forecasts')
 
     # Return predictions
     return predictions
 
 
 #######################################
-# Get any prior predictions
+# Get any prior forecasts
 #######################################
 
-def get_prior_arima_predictions():
-    return feature_store.load_artifact('anomaly_arima_predictions') or pd.getSeries([])
+def get_prior_arima_forecasts():
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    if forecasts is None:
+        forecasts = pd.Series([])
+    return forecasts
+
+
+##############################################
+# Get latest predictions from prior forecasts
+##############################################
+
+def get_predictions_before_or_at(dt):
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    logging.info(f"forecasts is {dt} {forecasts}")
+    if forecasts is None:
+        return pd.Series([])
+    return forecasts[forecasts.index <= dt]
+
+
+##############################################
+# Get latest forecasts
+##############################################
+
+def get_forecasts_after(dt):
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    if forecasts is None:
+        return pd.Series([])
+    return forecasts[forecasts.index > dt]
 
 
 #######################################
@@ -462,3 +499,15 @@ def get_trend_stats():
 def process_stats(head, body):
     logging.info('In process_stats...')
     logging.info(f'{json.loads(body)} {head}')
+
+
+#######################################
+# Get utility variables
+# (data normalizers, etc)
+#######################################
+def get_utility_vars():
+    return {
+        'anomaly_positive_standard_scalar': StandardScaler(),
+        'anomaly_neutral_standard_scalar': StandardScaler(),
+        'anomaly_negative_standard_scalar': StandardScaler(),
+    }

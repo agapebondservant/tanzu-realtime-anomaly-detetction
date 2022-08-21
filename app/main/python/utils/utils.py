@@ -21,6 +21,22 @@ def get_current_datetime():
     return pytz.utc.localize(datetime.now())
 
 
+def get_max_index(df):
+    if df is None:
+        return None
+    return df.index.max()
+
+
+def filter_rows_by_head_or_tail(df, head=True, num_rows_in_head=None, num_rows_in_tail=None):
+    if (num_rows_in_head is not None) != (num_rows_in_tail is not None):
+        raise ValueError(
+            f"Exactly one of num_rows_head({num_rows_in_head}) and num_rows_tail({num_rows_in_tail}) must be passed, not both")
+    if num_rows_in_head is not None:
+        return df[:num_rows_in_head] if head else df[num_rows_in_head:]
+    else:
+        return df[:-num_rows_in_tail] if head else df[-num_rows_in_tail:]
+
+
 def append_json_list_to_dataframe(df, json_record):
     df_data = json_record[1:]
     df_index = json_record[0]
@@ -39,6 +55,10 @@ def append_json_list_to_dataframe(df, json_record):
     pd.to_datetime(df2.index, format='%Y-%m-%d %H:%M:%S%z', utc=True, errors='coerce')
 
     return pd.concat([df, df2])
+
+
+def datetime_as_utc(dt):
+    return pytz.utc.localize(dt)
 
 
 def index_as_datetime(data):

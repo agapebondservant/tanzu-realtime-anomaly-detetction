@@ -40,7 +40,10 @@ def show_anomalies(timeframe):
         # Plot anomalies
         with st.spinner('Loading Trend with Anomalies...'):
             logging.info('Showing anomalies in Dashboard...')
-            fig = main.anomaly_detection_training_pipeline(sample_freq, timeframe)
+
+            if main.anomaly_detection_needs_training():
+                main.anomaly_detection_training_pipeline(sample_freq, timeframe)
+            fig = main.anomaly_detection_inference_pipeline(sample_freq, timeframe)
             st.pyplot(fig)
 
             # Show Stats
