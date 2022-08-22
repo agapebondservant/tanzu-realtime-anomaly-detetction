@@ -44,7 +44,6 @@ tab1, tab2, tab3 = st.tabs(["Home", "Feedback", "Anomalies"])
 # Charts
 base_key = time.time()
 with tab1:
-    # with st.container():
     logging.info("Refreshing dashboard...")
 
     timeframe = st.selectbox('Select time period', ('day', 'hour', 'week'))
@@ -55,28 +54,26 @@ with tab1:
 
 # Posts
 with tab2:
-    # with st.container():
 
-    sentiment = 'neutral'
+    if 'sentiment_post' not in st.session_state:
+        st.session_state['sentiment_post'] = ''
+    if 'sentiment' not in st.session_state:
+        st.session_state['sentiment'] = 'none'
 
-    sentiment_mappings = {'positive': 'color:green', 'negative': 'color:red', 'neutral': 'visibility:hidden'}
+    sentiment_mappings = {'positive': 'color:green', 'negative': 'color:red', 'neutral': 'color:gray', 'none': 'visibility:hidden'}
 
     st.write("Enter your thoughts:")
 
-    post = st.text_input('Feedback', '''''')
+    st.text_input('Feedback', '''''', key='sentiment_post', on_change=dashboard_widgets.show_sentiment)
 
-    if len(post) != 0:
-        sentiment = dashboard_widgets.show_sentiment(post)
-
-        st.markdown(
-            f"Sentiment:<br/><span style=font-size:1.6em;{sentiment_mappings[sentiment]}>{sentiment}</span>",
-            unsafe_allow_html=True)
+    st.markdown(
+        f"Sentiment:<br/><span style=font-size:1.6em;{sentiment_mappings[st.session_state['sentiment']]}>{st.session_state['sentiment']}</span>",
+        unsafe_allow_html=True)
 
     dashboard_widgets.render_sentiment_analysis_dashboard()
 
 # Anomalies
 with tab3:
-    # with st.container():
     timeframe2 = st.selectbox('Select a time period', ('day', 'hour', 'week'))
 
     st.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)

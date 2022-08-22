@@ -325,7 +325,8 @@ def plot_trend_with_anomalies(model_arima_results_full, model_arima_forecasts, s
     end_date = utils.get_max_index(model_arima_forecasts)
     logging.info(f"end date is {end_date} {model_arima_forecasts}")
     start_date = end_date - timedelta(hours=get_time_lags(timeframe))
-    marker_date = feature_store.load_offset('original_datetime')
+    marker_date_start = utils.get_min_index(model_arima_forecasts)
+    marker_date_end = utils.get_max_index(model_arima_forecasts)
 
     standard_scalar = extvars['anomaly_negative_standard_scalar']
     inverse_scaled = pd.DataFrame(
@@ -349,11 +350,10 @@ def plot_trend_with_anomalies(model_arima_results_full, model_arima_forecasts, s
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, label=f"ARIMA {stepwise_fit.order} Predictions", color='orange')
-    ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=1)
-    ax.fill_between(fitted_values_forecasted.index, fitted_values_forecasted + 2, fitted_values_forecasted - 2,
-                    facecolor="green", alpha=0.3)
+    ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=2)
     ax.plot(fitted_values_actual.loc[model_arima_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies")
+    ax.axvspan(marker_date_start, marker_date_end, alpha=0.5, color='green')
     ax.legend()
     fig.suptitle(f"ARIMA Model: \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
 
@@ -393,7 +393,6 @@ def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_
         predictions = predictions.append(pd.Series(pred))
 
     # Save forecasts
-    # latest_predictions = predictions[predictions.index > actual_negative_sentiments.index[-1]]
     feature_store.save_artifact(predictions, 'anomaly_arima_forecasts')
 
     # Return predictions

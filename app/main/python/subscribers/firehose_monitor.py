@@ -30,8 +30,8 @@ class FirehoseMonitor(subscriber.Subscriber):
         self.new_data = None
 
     def process_delivery(self, header, body):
-        # Only make updates to the dataset when a processing offset has been initialized
-        if feature_store.load_offset('original') is not None and self.offset > feature_store.load_offset('original'):
+        # Only start making updates to the dataset when the publisher is ready
+        if header.timestamp > feature_store.load_offset('original'):
             # Get existing data
             old_data = csv_data.get_data()
             if old_data is None or old_data.empty:
@@ -42,14 +42,13 @@ class FirehoseMonitor(subscriber.Subscriber):
                 self.new_data = pd.DataFrame(data=[], columns=old_data.columns)
             self.new_data = utils.append_json_list_to_dataframe(self.new_data, json.loads(body))
 
-            # Drop all overflow records from the dataset
-            data = pd.concat([old_data[len(self.new_data):], self.new_data])
+            # Append new data to the dataset
+            data = pd.concat([old_data, self.new_data])
 
             # update the feature store
             feature_store.save_artifact(data, '_data')
 
-            # Save the new offset
-            feature_store.save_offset(self.offset, 'firehose_monitor')
+            logging.debug(f"new data looks like this: {data}")
 
             # Reset new_data
             self.new_data = None

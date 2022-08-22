@@ -1,5 +1,3 @@
-import threading
-
 host = 'rabbitanalytics4.streamlit.svc.cluster.local'
 
 dashboard_monitor = None

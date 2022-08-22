@@ -72,8 +72,8 @@ def train_sentiment_model():
 #############################
 
 
-def show_sentiment(text):
-    return main.sentiment_analysis_inference_pipeline(text)
+def show_sentiment():
+    return main.sentiment_analysis_inference_pipeline()
 
 
 #############################

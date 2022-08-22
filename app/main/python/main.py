@@ -11,11 +11,13 @@ from datetime import datetime, timedelta
 from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 from sklearn.preprocessing import StandardScaler
 from app.main.python.publishers.firehose import Firehose
+from app.main.python.publishers.post_collector import PostCollector
 from app.main.python.subscribers.dashboard_monitor import DashboardMonitor
 from app.main.python.subscribers.monitor_thread import MonitorThread
 from app.main.python import config, csv_data
 from app.main.python.utils import utils
 from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
+import streamlit as st
 from app.main.python.publishers import notifier
 from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
 import threading
@@ -78,9 +80,15 @@ def sentiment_analysis_training_pipeline():
         traceback.print_exc()
 
 
-def sentiment_analysis_inference_pipeline(text):
+def sentiment_analysis_inference_pipeline():
     try:
-        return sentiment_analysis.predict(text)
+        if len(st.session_state['sentiment_post']) != 0:
+            st.session_state['sentiment'] = sentiment_analysis.predict(st.session_state['sentiment_post'])
+            post_collector = PostCollector(host=config.host,
+                                           post=st.session_state['sentiment_post'],
+                                           sentiment=st.session_state['sentiment'])
+            post_collector.start()
+        return st.session_state['sentiment']
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

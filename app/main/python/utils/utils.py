@@ -27,6 +27,12 @@ def get_max_index(df):
     return df.index.max()
 
 
+def get_min_index(df):
+    if df is None:
+        return None
+    return df.index.min()
+
+
 def filter_rows_by_head_or_tail(df, head=True, num_rows_in_head=None, num_rows_in_tail=None):
     if (num_rows_in_head is not None) != (num_rows_in_tail is not None):
         raise ValueError(
@@ -37,13 +43,10 @@ def filter_rows_by_head_or_tail(df, head=True, num_rows_in_head=None, num_rows_i
         return df[:-num_rows_in_tail] if head else df[-num_rows_in_tail:]
 
 
-def append_json_list_to_dataframe(df, json_record):
-    df_data = json_record[1:]
-    df_index = json_record[0]
+def append_json_list_to_dataframe(df, json_records):
+    df_data = json_records[1:]
+    df_index = epoch_as_datetime(json_records[0])
     df_columns = df.columns
-
-    # num_columns_to_append = len(df.columns) - len(json_record[1:])
-    # df_data += [None]*num_columns_to_append
 
     if 'sentiment' in list(df_columns):
         sentiment_idx = list(df_columns).index('airline_sentiment')
@@ -52,7 +55,6 @@ def append_json_list_to_dataframe(df, json_record):
     df2 = pd.DataFrame(
         data={df.columns[col]: df_data[col] for col in range(len(df_columns))},
         index=[df_index])
-    pd.to_datetime(df2.index, format='%Y-%m-%d %H:%M:%S%z', utc=True, errors='coerce')
 
     return pd.concat([df, df2])
 
@@ -97,4 +99,13 @@ def use_interrupt(func):
         st.session_state.dashboard_global_event.set()
         func(*args)
         st.session_state.dashboard_global_event.clear()
+
     return wrapper
+
+
+sequence_id = 569587140490866700
+
+
+def next_sequence_id(sequence_num=sequence_id):
+    sequence_num += 1
+    return sequence_num
