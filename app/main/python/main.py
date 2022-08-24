@@ -140,7 +140,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
     logging.info("Starting Anomaly Detection Training Pipeline.......................")
 
     # Input features
-    data_freq, sliding_window_size, total_forecast_window, estimated_seasonality_hours, arima_order = 10, 144, 2, 24, None
+    data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.80
 
     # Other required variables
 
@@ -155,7 +155,14 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
 
         # Prepare data by performing feature extraction
         buffers = anomaly_detection.prepare_data(df, sample_frequency, extvars)
-        total_training_window = len(buffers['actual_negative_sentiments'])
+
+        # Determine the training window
+        if rebuild:
+            total_training_window = training_percent * len(buffers['actual_negative_sentiments'])
+            total_forecast_window = len(buffers['actual_negative_sentiments']) - total_training_window
+        else:
+            total_training_window = len(buffers['actual_negative_sentiments'])
+            total_forecast_window = 2
 
         # Save EDA artifacts
         anomaly_detection.generate_and_save_eda_metrics(df)
@@ -169,7 +176,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
         logging.info(f'Stationarity : {anomaly_detection.check_stationarity(adf_results)}')
         logging.info(f'P-value : {adf_results[1]}')
 
-        # Build an ARIMA model
+        # Build an ARIMA model (or reuse existing one if this is not rebuild mode)
         stepwise_fit = anomaly_detection.build_arima_model(buffers['actual_negative_sentiments'], rebuild)
 
         # Perform training
@@ -180,7 +187,8 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
         model_arima_forecasts = anomaly_detection.generate_arima_forecasts(sliding_window_size,
                                                                            total_forecast_window,
                                                                            stepwise_fit,
-                                                                           buffers['actual_negative_sentiments'])
+                                                                           buffers['actual_negative_sentiments'],
+                                                                           rebuild)
 
         # Detect anomalies
         model_arima_results_full = anomaly_detection.detect_anomalies(model_arima_results.fittedvalues,
@@ -188,7 +196,8 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
                                                                       buffers['actual_negative_sentiments'])
 
         # Plot anomalies
-        fig = anomaly_detection.plot_trend_with_anomalies(model_arima_results_full,
+        fig = anomaly_detection.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
+                                                          model_arima_results_full,
                                                           model_arima_forecasts,
                                                           total_training_window,
                                                           stepwise_fit,
@@ -248,7 +257,8 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
                                                                       buffers['actual_negative_sentiments'])
 
         # Plot anomalies
-        fig = anomaly_detection.plot_trend_with_anomalies(model_arima_results_full,
+        fig = anomaly_detection.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
+                                                          model_arima_results_full,
                                                           model_arima_forecasts,
                                                           total_training_window,
                                                           stepwise_fit,

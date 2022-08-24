@@ -251,7 +251,7 @@ def build_arima_model(actual_negative_sentiments, rebuild):
 #######################################
 def train_arima_model(training_window_size, stepwise_fit, actual_negative_sentiments):
     logging.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
-    actual_negative_sentiments_train = actual_negative_sentiments.iloc[-int(training_window_size):]
+    actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(training_window_size)]
 
     model_arima_order = stepwise_fit.order
 
@@ -285,9 +285,9 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
 
-    predictions = predictions.iloc[-int(window_size):]
+    predictions = predictions.iloc[:int(window_size)]
 
-    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[-int(window_size):]
+    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:int(window_size)]
     # mae = median_absolute_error(df_total.iloc[-int(window_size):], predictions)
     logging.info(f"anomalies for...{df_total} {predictions}")
     mae = median_absolute_error(df_total, predictions)
@@ -317,10 +317,13 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
 #######################################
 # Plot Trend with Anomalies
 #######################################
-def plot_trend_with_anomalies(model_arima_results_full, model_arima_forecasts, sliding_window_size, stepwise_fit,
+def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_full, model_arima_forecasts,
+                              sliding_window_size,
+                              stepwise_fit,
                               extvars,
                               timeframe='hour'):
     logging.info("Plot trend with anomalies...")
+
     # Set start_date, end_date
     end_date = utils.get_max_index(model_arima_forecasts)
     logging.info(f"end date is {end_date} {model_arima_forecasts}")
@@ -354,6 +357,15 @@ def plot_trend_with_anomalies(model_arima_results_full, model_arima_forecasts, s
     ax.plot(fitted_values_actual.loc[model_arima_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies")
     ax.axvspan(marker_date_start, marker_date_end, alpha=0.5, color='green')
+
+    # Include plots for test data if applicable
+    test_data = total_negative_sentiments[['sentiment_normalized']].iloc[int(sliding_window_size):]
+    if len(test_data):
+        fitted_values_actual_test = pd.DataFrame(standard_scalar.inverse_transform(test_data),
+                                                 columns=['testvalues'],
+                                                 index=test_data.index)['testvalues']
+        ax.plot(fitted_values_actual_test, label="Test", color="yellow")
+
     ax.legend()
     fig.suptitle(f"ARIMA Model: \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
 
@@ -363,10 +375,10 @@ def plot_trend_with_anomalies(model_arima_results_full, model_arima_forecasts, s
 #######################################
 # Generate ARIMA Forecasts
 #######################################
-def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
+def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments, rebuild=False):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
-    df = actual_negative_sentiments
+    df = actual_negative_sentiments.iloc[:-int(total_forecast_size)] if rebuild else actual_negative_sentiments
     # .iloc[:-int(total_forecast_size)]
 
     # The number of forecasts per sliding window will be the number of AR or MA lags, as ARIMA can't forecast beyond that
