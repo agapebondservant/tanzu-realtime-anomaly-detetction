@@ -4,7 +4,6 @@
 import pandas as pd
 import numpy as np
 import logging
-import streamlit as st
 from statsmodels.tsa.seasonal import seasonal_decompose
 from pylab import rcParams
 from datetime import datetime
@@ -379,7 +378,6 @@ def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
     df = actual_negative_sentiments.iloc[:-int(total_forecast_size)] if rebuild else actual_negative_sentiments
-    # .iloc[:-int(total_forecast_size)]
 
     # The number of forecasts per sliding window will be the number of AR or MA lags, as ARIMA can't forecast beyond that
     num_lags = max(stepwise_fit.order[0], stepwise_fit.order[2])

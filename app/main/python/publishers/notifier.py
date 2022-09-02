@@ -1,21 +1,11 @@
 import pika
-import time
-import datetime
-import logging
-import traceback
-import threading
-import json
-from datetime import datetime, timedelta
-import pytz
-from app.main.python.connection import publisher
-from utils import utils
+from rabbitmq.connection import publisher
 
 
 class Notifier(publisher.Publisher):
 
-    def on_channel_open(self, _channel):
+    def send_messages(self, _channel):
         """Called when our channel has opened"""
-        super().on_channel_open(_channel)
 
         # Publish notification to topic exchange that new data was published
         self.channel.basic_publish(self.exchange, self.routing_key, self.data,
@@ -27,4 +17,5 @@ class Notifier(publisher.Publisher):
                  data=None,
                  exchange='rabbitanalytics4-exchange',
                  routing_key='anomaly.datapublished'):
-        super(Notifier, self).__init__(host, data, exchange, routing_key)
+        super(Notifier, self).__init__(host=host, data=data, exchange=exchange, routing_key=routing_key,
+                                       send_callback=Notifier.send_messages)

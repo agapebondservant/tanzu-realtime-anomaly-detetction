@@ -1,14 +1,6 @@
-import joblib
-import logging
-import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-import pytz
 from app.main.python import feature_store, config
-from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
 from app.main.python.utils import utils
-import threading
-import json
 
 
 def get_data(begin_offset=None, end_offset=None):

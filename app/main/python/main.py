@@ -1,27 +1,18 @@
 ########################
 # Imports
 ########################
-import pandas as pd
-import numpy as np
 import logging
 import warnings
 import traceback
-from pylab import rcParams
-from datetime import datetime, timedelta
 from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 from sklearn.preprocessing import StandardScaler
 from app.main.python.publishers.firehose import Firehose
 from app.main.python.publishers.post_collector import PostCollector
 from app.main.python.subscribers.dashboard_monitor import DashboardMonitor
-from app.main.python.subscribers.monitor_thread import MonitorThread
 from app.main.python import config, csv_data
 from app.main.python.utils import utils
 from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
 import streamlit as st
-from app.main.python.publishers import notifier
-from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
-import threading
-import time
 
 ########################
 # Set-up

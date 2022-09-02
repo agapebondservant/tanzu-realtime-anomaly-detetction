@@ -2,11 +2,6 @@ FROM python:3.10-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
 
-#PIPENV_IGNORE_VIRTUALENVS=1
-#ENV VIRTUAL_ENV=/opt/venv
-#RUN python3 -m venv $VIRTUAL_ENV
-#ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-
 WORKDIR /parent
 COPY requirements.txt ./requirements.txt
 COPY Pipfile ./Pipfile
@@ -27,12 +22,12 @@ RUN apt-get update \
     " > /root/.streamlit/credentials.toml'
 
 COPY app ./app
+COPY rabbitmq ./rabbitmq
 COPY data ./data
 COPY assets ./assets
 EXPOSE 8501
 
 ENV PYTHONPATH /parent
 
-#ENTRYPOINT ["streamlit", "run", "--server.headless", "true", "--server.enableXsrfProtection", "false"]
 ENTRYPOINT ["streamlit", "run"]
-CMD ["app/main/python/dashboard.py"]
+CMD ["app/main/python/ui/dashboard.py"]

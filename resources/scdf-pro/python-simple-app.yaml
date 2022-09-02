@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kbld-test1
+spec:
+  selector:
+    matchLabels:
+      app: kbld-test1
+  template:
+    metadata:
+      labels:
+        app: kbld-test1
+    spec:
+      containers:
+        - name: my-app
+          image: simple-python-app
+
+---
+apiVersion: kbld.k14s.io/v1alpha1
+kind: Config
+sources:
+  - image: simple-python-app
+    path: app/
+    pack:
+      build:
+        builder: paketobuildpacks/builder:full
+        buildpacks:
+          - paketo-buildpacks/python
+destinations:
+  - image: simple-python-app
+    newImage: docker.io/oawofolu/simple-python-app
+---

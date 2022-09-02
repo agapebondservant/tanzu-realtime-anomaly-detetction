@@ -1,14 +1,7 @@
-import pika
-import time
-import datetime
 import logging
-import traceback
-import threading
 import json
-from datetime import datetime, timedelta
-import pytz
 import pandas as pd
-from app.main.python.connection import subscriber
+from rabbitmq.connection import subscriber
 from app.main.python.publishers import notifier
 from app.main.python import csv_data, feature_store, config
 from app.main.python.utils import utils
@@ -17,19 +10,20 @@ from app.main.python.utils import utils
 class FirehoseMonitor(subscriber.Subscriber):
     def __init__(self,
                  host=None,
-                 process_delivery_callback=None,
                  queue='rabbitanalytics4-stream',
                  queue_arguments={'x-queue-type': 'stream'},
                  consumer_arguments={},
                  offset=None,
                  prefetch_count=1000,
                  conn_retry_count=0):
-        super(FirehoseMonitor, self).__init__(host, process_delivery_callback, queue,
-                                              queue_arguments, consumer_arguments, offset, prefetch_count,
-                                              conn_retry_count)
+        super(FirehoseMonitor, self).__init__(host=host, queue=queue,
+                                              queue_arguments=queue_arguments, consumer_arguments=consumer_arguments,
+                                              offset=offset, prefetch_count=prefetch_count,
+                                              conn_retry_count=conn_retry_count,
+                                              receive_callback=FirehoseMonitor.receive_messages)
         self.new_data = None
 
-    def process_delivery(self, header, body):
+    def receive_messages(self, header, body):
         # Only start making updates to the dataset when the publisher is ready
         if header.timestamp > feature_store.load_offset('original'):
             # Get existing data

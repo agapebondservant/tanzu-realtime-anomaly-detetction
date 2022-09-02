@@ -1,11 +1,4 @@
-
-import joblib
-import logging
-import numpy as np
-import pandas as pd
-import feature_store
-from datetime import datetime, timedelta
-from app.main.python import csv_data
+from app.main.python import csv_data, feature_store
 
 
 def get_data(begin_offset=None, end_offset=None):

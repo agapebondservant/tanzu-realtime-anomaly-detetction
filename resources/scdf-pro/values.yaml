@@ -1,0 +1,6 @@
+scdf:
+  server:
+    service:
+      type: LoadBalancer
+    config:
+      logging.level.org.springframework: info

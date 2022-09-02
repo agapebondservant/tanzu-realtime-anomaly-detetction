@@ -4,10 +4,7 @@ import pytz
 import pandas as pd
 import logging
 import traceback
-import functools
 from app.main.python import feature_store, config
-import streamlit as st
-import threading
 
 
 def dataframe_record_as_json_string(row, date_index, orientation):
@@ -87,20 +84,6 @@ def store_global_offset(dt):
     monitors = [config.firehose_monitor]
     for monitor in monitors:
         monitor.read_data(offset)
-
-
-def exception_handler(args):
-    logging.error(f'caught {args.exc_type} with value {args.exc_value} in thread {args.thread}\n')
-    logging.error(traceback.format_exc())
-
-
-def use_interrupt(func):
-    def wrapper(*args):
-        st.session_state.dashboard_global_event.set()
-        func(*args)
-        st.session_state.dashboard_global_event.clear()
-
-    return wrapper
 
 
 sequence_id = 569587140490866700

@@ -5,3 +5,4 @@ tmp/
 artifacts/*
 resources/kubernetes/artifacts
 app/main/python/__pycache__/*.*
+resources/scdf-pro/scdf-pro-http-proxy.yaml

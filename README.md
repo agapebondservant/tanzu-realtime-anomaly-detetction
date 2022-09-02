@@ -9,8 +9,9 @@ NOTE:
 2. [Install Streamlit](#install-streamlit)
 3. [Deploy Postgres Instance](#deploy-anomaly-postgres)
 4. [Setup Argo Workflows](#setup-argo-workflows)
-5. [Setup Jupyterflow](#setup-jupyterflow)
-6. [Run Methods](#run-methods)
+5. [Setup Spring Cloud Data Flow Pro version](#setup-scdf-pro)
+6. [Setup Jupyterflow](#setup-jupyterflow)
+7. [Run Methods](#run-methods)
 
 #### Prepare environment <a name="prepare-env"/>
 * Set up namespace and secrets:
@@ -118,6 +119,27 @@ Navigate to https://$(kubectl get svc argo-server -njupyterflow -o jsonpath='{.s
 pip install jupyterflow
 ```
 
+#### Setup Spring Cloud Data Flow Pro version <a name="setup-scdf-pro"/>
+* Install SCDF Pro:
+```
+resources/scdf-pro/install.sh
+envsubst < resources/scdf-pro/scdf-pro-http-proxy.in.yaml > resources/scdf-pro/scdf-pro-http-proxy.yaml
+kubectl apply -f resources/scdf-pro/scdf-pro-http-proxy.yaml
+(Navigate to the SCDF dashboard via http://scdf-pro-server.{YOUR FQDN DOMAIN}/dashboard)
+```
+
+* To **make updates to previously installed SCDF Pro**, make changes to resources/scdf-pro/values.yaml and update:
+```
+tanzu package installed update scdf-pro-demo \
+  --package-name scdfpro.tanzu.vmware.com \
+  --version 1.5.0-SNAPSHOT \
+  --values-file resources/scdf-pro/values.yaml
+```
+
+* Add applications:
+- Click "Add Applications" -> "Import application starters from dataflow.spring.io" -> "Stream application starters for RabbitMQ/Docker"
+- Click "Import Applications"
+
 #### Run Methods
 * Run sentiment analysis training pipeline:
 ```
@@ -138,14 +160,14 @@ python -c "from app.main.python import main; print(main.anomaly_detection_traini
 ```
 pipenv install
 pipenv shell
-python -m streamlit run app/main/python/dashboard.py --logger.level=info
+python -m streamlit run app/main/python/ui/dashboard.py --logger.level=info
 ```
 
 * Launch tracker:
 ```
 pipenv install
 pipenv shell
-python -m streamlit run app/main/python/tracker.py --logger.level=info
+python -m streamlit run app/main/python/ui/tracker.py --logger.level=info
 ```
 
 ### Build Docker Containers for Apps
@@ -157,8 +179,8 @@ docker push oawofolu/streamlit
 ### Deploy Apps to Kubernetes
 ```
 kubectl create ns streamlit
-kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/dashboard.py
-kubectl create deployment streamlit-tracker --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/tracker.py
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py
+kubectl create deployment streamlit-tracker --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/tracker.py
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=dashboard-svc --type=LoadBalancer -nstreamlit
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=tracker-svc --type=LoadBalancer -nstreamlit
 watch kubectl get all -nstreamlit

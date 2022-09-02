@@ -1,21 +1,12 @@
 import pika
-import time
-import datetime
-import logging
-import traceback
-import threading
-import json
-from datetime import datetime, timedelta
-import pytz
-from app.main.python.connection import publisher
-from utils import utils
+from rabbitmq.connection import publisher
+from app.main.python.utils import utils
 
 
 class Firehose(publisher.Publisher):
 
-    def on_channel_open(self, _channel):
+    def send_messages(self, _channel):
         """Called when our channel has opened"""
-        super().on_channel_open(_channel)
 
         if self.data is not None:
             for i, row in self.data.iterrows():
@@ -30,4 +21,5 @@ class Firehose(publisher.Publisher):
                  data=None,
                  exchange=None,
                  routing_key=None):
-        super(Firehose, self).__init__(host, data, exchange, routing_key)
+        super(Firehose, self).__init__(host=host, data=data, exchange=exchange, routing_key=routing_key,
+                                       send_callback=Firehose.send_messages)
