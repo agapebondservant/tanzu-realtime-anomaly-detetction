@@ -1,7 +1,7 @@
 ########################
 # Imports
 ########################
-import pandas as pd
+import modin.pandas as pd
 import numpy as np
 import logging
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -40,6 +40,7 @@ import math
 import json
 from app.main.python import feature_store, data_source, config
 from app.main.python.utils import utils
+from app.main.python.metrics import prometheus_metrics_util
 
 
 ########################################################################################################################
@@ -347,6 +348,9 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
+    # TODO: Publish metrics to queue
+    prometheus_metrics_util.send_arima_mae(mae_error)
+
     # Plot curves
     fig, ax = plt.subplots(figsize=(14, 5))
     ax.set_xlim([start_date, end_date])
@@ -374,7 +378,8 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
 #######################################
 # Generate ARIMA Forecasts
 #######################################
-def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments, rebuild=False):
+def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
+                             rebuild=False):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
     df = actual_negative_sentiments.iloc[:-int(total_forecast_size)] if rebuild else actual_negative_sentiments

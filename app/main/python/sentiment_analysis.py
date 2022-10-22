@@ -1,7 +1,7 @@
 ########################
 # Imports
 ########################
-import pandas as pd
+import modin.pandas as pd
 import numpy as np
 import logging
 from statsmodels.tsa.seasonal import seasonal_decompose

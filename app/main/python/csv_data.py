@@ -1,4 +1,4 @@
-import pandas as pd
+import modin.pandas as pd
 from app.main.python import feature_store, config
 from app.main.python.utils import utils
 

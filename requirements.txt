@@ -19,3 +19,11 @@ pika
 Pillow
 streamlit-autorefresh
 jupyterflow
+ray[default]
+lz4
+pyyaml
+prometheus-client
+protobuf==3.19.5
+fastapi
+https://github.com/agapebondservant/ml-metrics-accelerator/zipball/main
+modin[ray]

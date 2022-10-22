@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import modin.pandas as pd
 import time
 from app.main.python import main
 

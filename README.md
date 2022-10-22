@@ -7,11 +7,11 @@ NOTE:
 #### Contents
 1. [Prepare environment](#prepare-env)
 2. [Install Streamlit](#install-streamlit)
-3. [Deploy Postgres Instance](#deploy-anomaly-postgres)
-4. [Setup Argo Workflows](#setup-argo-workflows)
-5. [Setup Spring Cloud Data Flow Pro version](#setup-scdf-pro)
-6. [Setup Jupyterflow](#setup-jupyterflow)
-7. [Run Methods](#run-methods)
+3. [Deploy MLFlow](#deploy-mlflow)
+5. [Setup Argo Workflows](#setup-argo-workflows)
+6. [Setup Spring Cloud Data Flow Pro version](#setup-scdf-pro)
+7. [Setup Jupyterflow](#setup-jupyterflow)
+8. [Run Methods](#run-methods)
 
 #### Prepare environment <a name="prepare-env"/>
 * Set up namespace and secrets:
@@ -54,16 +54,8 @@ xcode-select --install #on mac
 softwareupdate --install -a #on mac
 ```
 
-#### Deploy Postgres Instance <a name="deploy-anomaly-postgres"/>
-* Deploy Postgres cluster:
-``` 
-kubectl apply -f resources/postgres/postgres.yaml -n rt-analytics
-```
-
-* Import data:
-```
-
-```
+#### Deploy MLFlow <a name="deploy-mlflow"/>
+* Deploy MLFlow: see <a href="https://github.com/agapebondservant/mlflow-demo.git" target="_blank>repository</a>
 
 #### Setup Argo Workflows <a name="setup-argo-workflows"/>
 * Setup Argo Workflows:
@@ -77,7 +69,13 @@ kubectl apply -f resources/argo/amqp-event-source.yaml -n argo-events
 * Install NFS storage class:
 ```
 helm repo add nfs-ganesha-server-and-external-provisioner https://kubernetes-sigs.github.io/nfs-ganesha-server-and-external-provisioner/
-helm install my-release nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner
+helm install nfs-release nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner -f resources/scdf-pro/nfs-values.yaml
+```
+
+* To uninstall NFS (might need to uninstall before reinstalling with new arguments):
+```
+kubectl delete pvc data-nfs-release-nfs-server-provisioner-0
+helm uninstall nfs-release
 ```
 
 * Setup Jupyterhub Service Account RBAC:
@@ -125,6 +123,7 @@ pip install jupyterflow
 resources/scdf-pro/install.sh
 envsubst < resources/scdf-pro/scdf-pro-http-proxy.in.yaml > resources/scdf-pro/scdf-pro-http-proxy.yaml
 kubectl apply -f resources/scdf-pro/scdf-pro-http-proxy.yaml
+kubectl apply -f resources/scdf-pro/nfs-pvc.yaml
 (Navigate to the SCDF dashboard via http://scdf-pro-server.{YOUR FQDN DOMAIN}/dashboard)
 ```
 

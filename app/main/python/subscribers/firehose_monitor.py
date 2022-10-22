@@ -1,6 +1,6 @@
 import logging
 import json
-import pandas as pd
+import modin.pandas as pd
 from rabbitmq.connection import subscriber
 from app.main.python.publishers import notifier
 from app.main.python import csv_data, feature_store, config

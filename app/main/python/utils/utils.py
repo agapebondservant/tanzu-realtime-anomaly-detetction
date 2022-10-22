@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 import pytz
-import pandas as pd
+import modin.pandas as pd
 import logging
 import traceback
 from app.main.python import feature_store, config
