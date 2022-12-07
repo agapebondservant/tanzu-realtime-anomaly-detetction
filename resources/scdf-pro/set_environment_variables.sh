@@ -1,0 +1,4 @@
+kubectl set env deployment/skipper \
+  SPRING_CLOUD_SKIPPER_SERVER_PLATFORM_KUBERNETES_ACCOUNTS_DEFAULT_CONFIGMAPREFS=test-ml-model \
+  SPRING_CLOUD_SKIPPER_SERVER_PLATFORM_KUBERNETES_ACCOUNTS_DEFAULT_IMAGEPULLSECRET=image-pull-secret
+kubectl rollout restart deployment/skipper
