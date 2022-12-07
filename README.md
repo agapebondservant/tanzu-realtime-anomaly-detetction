@@ -118,13 +118,30 @@ pip install jupyterflow
 ```
 
 #### Setup Spring Cloud Data Flow Pro version <a name="setup-scdf-pro"/>
-* Install SCDF Pro:
+* Install SCDF:
 ```
-resources/scdf-pro/install.sh
-envsubst < resources/scdf-pro/scdf-pro-http-proxy.in.yaml > resources/scdf-pro/scdf-pro-http-proxy.yaml
-kubectl apply -f resources/scdf-pro/scdf-pro-http-proxy.yaml
+source .env
+resources/scdf-pro/create-scdf-secret.sh
+cd ../tap/
+resources/scripts/setup-scdf-1.3.sh
+cd -
 kubectl apply -f resources/scdf-pro/nfs-pvc.yaml
-(Navigate to the SCDF dashboard via http://scdf-pro-server.{YOUR FQDN DOMAIN}/dashboard)
+kubectl apply -f resources/scdf-pro/scdf-service-monitors.yaml -n monitoring-tools
+resources/scdf-pro/set_environment_variables.sh
+(Navigate to the SCDF dashboard via http://scdf.{YOUR FQDN DOMAIN}/dashboard)
+```
+
+* Install Prometheus and Service Monitors (helm install step is only required if prometheus has not already been installed):
+```
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install prometheus prometheus-community/kube-prometheus-stack --create-namespace --namespace=monitoring-tools \
+--set prometheus.service.port=8000 --set prometheus.service.type=ClusterIP \
+--set grafana.enabled=false,alertmanager.enabled=false,nodeExporter.enabled=false \
+--set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+--set prometheus.prometheusSpec.shards=0 \
+--wait
+kubectl apply -f resources/scdf-pro/scdf-pod-monitors.yaml -n monitoring-tools
 ```
 
 * To **make updates to previously installed SCDF Pro**, make changes to resources/scdf-pro/values.yaml and update:
