@@ -38,9 +38,13 @@ import re
 import pytz
 import math
 import json
-from app.main.python import feature_store, data_source, config
+from app.main.python import feature_store, data_source, config, anomaly_detection
 from app.main.python.utils import utils
 from app.main.python.metrics import prometheus_metrics_util
+from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 
 
 ########################################################################################################################
@@ -52,43 +56,28 @@ from app.main.python.metrics import prometheus_metrics_util
 # Ingest Data
 ########################
 def ingest_data():
-    logging.info('Ingest data...')
-    df = data_source.get_data()
-    return df
+    return anomaly_detection.ingest_data()
 
 
 #######################################
 # Set Global Values
 #######################################
 def initialize_input_features(data_freq, sliding_window_size, arima_order):
-    logging.info("Initializing input features...")
-    input_features = {
-        'data_freq': data_freq,
-        'sliding_window_size': sliding_window_size,
-        'arima_order': arima_order
-    }
-    feature_store.save_artifact(input_features, "anomaly_detection_input_features")
-    return input_features
+    return anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
 
 
 #######################################
 # Generate and Save EDA Artifacts
 #######################################
 def generate_and_save_eda_metrics(df):
-    logging.info("Generating and saving EDA metrics...")
-    data_summary = df.groupby('airline_sentiment').resample('1d').count()[['tweet_id']]
-    data_summary = data_summary.unstack(0)
-    data_summary['total'] = data_summary.sum(axis=1)
-    feature_store.save_artifact(data_summary, "anomaly_detection_eda")
-    return data_summary
+    return anomaly_detection.generate_and_save_eda_metrics(df)
 
 
 #############################
 # Filter Data
 #############################
 def filter_data(df, head=True, num_rows_head=None, num_rows_tail=None):
-    logging.info("Filtering by retrieving only required subset of data...")
-    return utils.filter_rows_by_head_or_tail(df, head, num_rows_head, num_rows_tail)
+    return anomaly_detection.filter_data(df, head, num_rows_head, num_rows_tail)
 
 
 #############################
@@ -96,76 +85,35 @@ def filter_data(df, head=True, num_rows_head=None, num_rows_tail=None):
 #############################
 
 def prepare_data(df, sample_frequency, extvars):
-    logging.info("Preparing data...")
-
-    # First perform data cleansing
-    df = cleanse_data(df)
-
-    data_buffers = extract_features(df, sample_frequency, extvars)
-    return data_buffers
+    return anomaly_detection.prepare_data(df, sample_frequency, extvars)
 
 
 #######################################
 # Perform data cleansing
 #######################################
 def cleanse_data(df):
-    logging.info("Cleansing data...")
-    return df
+    return anomaly_detection.cleanse_data(df)
 
 
 #######################################
 # Perform feature extraction via resampling
 #######################################
 def extract_features(df, sample_frequency='10min', extvars={}, is_partial_data=False):
-    logging.info("Performing feature extraction...")
-
-    df['sentiment'] = df['airline_sentiment'].map({'positive': 1, 'neutral': 0, 'negative': -1})
-
-    filtered_data_sets = get_filtered_data_sets(df, sample_frequency, extvars)
-
-    if is_partial_data is False:
-        feature_store.save_artifact(filtered_data_sets, 'anomaly_detection_buffers')
-
-    return filtered_data_sets
+    return anomaly_detection.extract_features(df, sample_frequency, extvars, is_partial_data)
 
 
 #######################################
 # Perform Data Standardization
 #######################################
 def standardize_data(buffers, extvars):
-    logging.info("Performing data standardization...")
-
-    actual_positive_sentiments, actual_negative_sentiments, actual_neutral_sentiments = \
-        buffers['actual_positive_sentiments'], \
-        buffers['actual_negative_sentiments'], \
-        buffers['actual_neutral_sentiments']
-
-    buffers['actual_positive_sentiments'][['sentiment_normalized']] = \
-        extvars['anomaly_positive_standard_scalar'].fit_transform(actual_positive_sentiments[['sentiment']])
-    buffers['actual_negative_sentiments'][['sentiment_normalized']] = \
-        extvars['anomaly_negative_standard_scalar'].fit_transform(actual_negative_sentiments[['sentiment']])
-    buffers['actual_neutral_sentiments'][['sentiment_normalized']] = \
-        extvars['anomaly_neutral_standard_scalar'].fit_transform(actual_neutral_sentiments[['sentiment']])
-
-    return buffers
+    return anomaly_detection.standardize_data(buffers, extvars)
 
 
 #######################################
 # Initialize Data Buffers
 #######################################
 def get_filtered_data_sets(df, sample_frequency, extvars):
-    logging.info("Generate and save data buffers to use for stream processing...")
-
-    data_buffers = {
-        'total_sentiments': df,
-        'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{sample_frequency}').count(),
-        'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{sample_frequency}').count(),
-        'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{sample_frequency}').count()
-    }
-
-    data_buffers = standardize_data(data_buffers, extvars)
-
-    return data_buffers
+    return anomaly_detection.get_filtered_data_sets(df, sample_frequency, extvars)
 
 
 #######################################
@@ -230,49 +178,120 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 
 
 #######################################
-# Perform Auto ARIMA to build model
+# Build RNN model
 #######################################
-def build_arima_model(actual_negative_sentiments, rebuild=False):
-    logging.info("Running auto_arima to build ARIMA model...")
-    stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
+def build_rnn_model(actual_negative_sentiments, sliding_window_size=144, data_freq='10min', rebuild=False):
+    logging.info("Build RNN model...")
+
+    generator = feature_store.load_artifact('anomaly_timeseries')
 
     if rebuild is True:
-        stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
-                                  max_q=6,
-                                  seasonal=True, trace=True)
+        # Build a Timeseries Generator
+        generator = build_timeseries_generator(actual_negative_sentiments['sentiment_normalized'], sliding_window_size)
 
-    feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima')
-    return stepwise_fit
+    feature_store.save_artifact(generator, 'anomaly_timeseries')
+
+    return generator
+
+
+##############################################################################
+# Build a Timeseries generator for the RNN Model
+##############################################################################
+def build_timeseries_generator(actual_negative_sentiments, training_window_size, sliding_window_size):
+    # total_test_window = int(sliding_window_size * 2)
+
+    # The training data
+    # actual_negative_sentiments_train = actual_negative_sentiments.iloc[:-total_test_window].dropna()
+    actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
+
+    # number of outputs per batch
+    batch_length = sliding_window_size
+
+    # Number of batches per training cycle
+    timeseries_batch_size = 1
+
+    # Standardize the data
+    standard_scaler_rnn = StandardScaler()
+
+    standard_scaler_rnn.fit(actual_negative_sentiments_train[['sentiment']])
+
+    feature_store.save_artifact(standard_scaler_rnn, 'scaler_rnn_train')
+
+    scaled_train = standard_scaler_rnn.transform(actual_negative_sentiments_train[['sentiment']])
+
+    # Build the generator
+    generator = TimeseriesGenerator(scaled_train,
+                                    scaled_train,
+                                    length=batch_length,
+                                    batch_size=timeseries_batch_size)
+
+    return generator
 
 
 #######################################
-# Train ARIMA Model To Generate Results
+# Train/Validate RNN Model To Generate Results
 #######################################
-def train_arima_model(training_window_size, stepwise_fit, actual_negative_sentiments):
-    logging.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
-    actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(training_window_size)]
+def train_rnn_model(training_window_size, stepwise_fit, actual_negative_sentiments, sliding_window_size=144):
+    logging.info(f"Train RNN model...")
 
-    model_arima_order = stepwise_fit.order
+    # generate batch_length - number of outputs per batch; generator batch size; number of features
+    batch_length, timeseries_batch_size, num_features, num_weights = sliding_window_size, 1, 1, 150
 
-    model_arima = ARIMA(actual_negative_sentiments_train['sentiment_normalized'], order=model_arima_order)
+    # set up model
+    rnn_model = Sequential()
 
-    feature_store.save_artifact(model_arima, 'anomaly_arima_model')
+    rnn_model.add(SimpleRNN(num_weights, input_shape=(batch_length, num_features)))
 
-    model_arima_results = model_arima.fit()  # fit the model
+    rnn_model.add(Dense(1))
 
-    feature_store.save_artifact(model_arima_results, 'anomaly_arima_model_results')
+    rnn_model.compile(optimizer='adam', loss='mae')
 
-    return model_arima_results
+    rnn_model.summary()
+
+    # get the training generator
+    generator = build_timeseries_generator(actual_negative_sentiments, training_window_size)
+
+    # set up Early Stopping
+    early_stop = EarlyStopping(monitor='val_loss', patience=2)
+
+    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
+
+    # set the test data
+    # actual_negative_sentiments_test = actual_negative_sentiments.iloc[-total_test_window:].dropna()
+    actual_negative_sentiments_test = actual_negative_sentiments.iloc[training_window_size:].dropna()
+
+    scaled_test = standard_scaler_rnn.transform(actual_negative_sentiments_test[['sentiment']])
+
+    # build the validation batch generator
+    validation_generator = TimeseriesGenerator(scaled_test,
+                                               scaled_test,
+                                               length=batch_length,
+                                               batch_size=timeseries_batch_size)
+
+    # fit the model
+    rnn_model.fit_generator(generator, epochs=40, validation_data=validation_generator, callbacks=[early_stop])
+
+    # generate losses visualization
+    fig, ax = plt.subplots(figsize=(15, 6))
+    fig.suptitle("RNN Losses", fontsize=16)
+    losses = pd.DataFrame(rnn_model.history.history)
+    ax.plot(pd.DataFrame(losses['loss']), label="Loss")
+    ax.plot(pd.DataFrame(losses['val_loss']), label="Validation Loss")
+    ax.legend(loc='best')
+    plt.savefig("anomaly_rnn_losses.png", bbox_inches='tight')
+
+    # save the model
+    feature_store.save_artifact(rnn_model, 'anomaly_rnn_model')
 
 
 #######################################
-# Test ARIMA Model
+# Test RNN Model
 #######################################
 def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
-    logging.info('Testing ARIMA model...')
+    logging.info('Testing RNN model...')
 
-    return generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
-                                    actual_negative_sentiments)
+    return generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
+                                  actual_negative_sentiments)
 
 
 #######################################
@@ -375,50 +394,60 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
 
 
 #######################################
-# Generate ARIMA Forecasts
+# Generate RNN Forecasts
 #######################################
-def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
-                             rebuild=False):
-    logging.info("Generate ARIMA predictions...")
+def generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
+                           rebuild=False,
+                           total_training_window=1440):
+    logging.info("Generate RNN predictions...")
+
     # The dataset to forecast with
-    df = actual_negative_sentiments.iloc[:-int(total_forecast_size)] if rebuild else actual_negative_sentiments
+    if rebuild:
+        actual_negative_sentiments_train = actual_negative_sentiments.iloc[:-int(total_forecast_size)]
+        actual_negative_sentiments_test = actual_negative_sentiments.iloc[-int(total_forecast_size):]
+    else:
+        actual_negative_sentiments_train = actual_negative_sentiments
+        actual_negative_sentiments_test = pd.DataFrame()
 
-    # The number of forecasts per sliding window will be the number of AR or MA lags, as ARIMA can't forecast beyond that
-    num_lags = max(stepwise_fit.order[0], stepwise_fit.order[2])
+    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
+    scaled_train = standard_scaler_rnn.transform(actual_negative_sentiments_train[['sentiment']])
+    scaled_test = standard_scaler_rnn.transform(actual_negative_sentiments_test[['sentiment']])
 
-    # The number of sliding windows will be ( total forecast size / num_lags )
-    num_sliding_windows = math.ceil(total_forecast_size / num_lags)
+    num_predictions, num_features, batch_length = len(scaled_test), 1, sliding_window_size
 
-    # Initialize the start & end indexes
-    end_idx = len(df) - num_lags
+    # Load the model
+    rnn_model = feature_store.load_artifact('anomaly_rnn_model')
 
-    # Get any prior ARIMA forecasts
-    predictions = get_prior_arima_forecasts()
+    eval_batch = scaled_train[-batch_length:].reshape(1, batch_length, num_features)
 
-    for idx in np.arange(num_sliding_windows):
-        # Compute the start & end indexes
-        end_idx = end_idx + num_lags
-        start_idx = end_idx - sliding_window_size
-        logging.info(f'DEBUG: {start_idx} {end_idx} {end_idx - start_idx} {len(df)} {len(actual_negative_sentiments)}')
-        tmp_data = actual_negative_sentiments[int(start_idx):int(end_idx)]
-        tmp_arima = ARIMA(tmp_data['sentiment_normalized'], order=stepwise_fit.order)
-        tmp_model_arima_results = tmp_arima.fit()
-        pred = tmp_model_arima_results.forecast(steps=num_lags, typ="levels").rename('forecasted')
-        predictions = predictions.append(pd.Series(pred))
+    scaled_predictions = []
 
-    # Save forecasts
-    feature_store.save_artifact(predictions, 'anomaly_arima_forecasts')
+    for i in np.arange(num_predictions):
+        scaled_prediction = rnn_model.predict(eval_batch)
 
-    # Return predictions
-    return predictions
+        eval_batch = np.append(eval_batch[:, 1:, :], [scaled_prediction], axis=1)
+
+        scaled_predictions.append(scaled_prediction)
+
+    predictions = standard_scaler_rnn.inverse_transform(np.reshape(scaled_predictions, (num_predictions, 1)))
+
+    rnn_predictions = pd.concat([get_prior_rnn_forecasts(), pd.Series(predictions.reshape(-1))])[
+                      -len(actual_negative_sentiments_test):]
+
+    rnn_predictions.reindex(actual_negative_sentiments_test.index)
+
+    # Store predictions
+    feature_store.save_artifact(rnn_predictions, 'anomaly_rnn_forecasts')
+
+    return rnn_predictions
 
 
 #######################################
 # Get any prior forecasts
 #######################################
 
-def get_prior_arima_forecasts():
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+def get_prior_rnn_forecasts():
+    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
     if forecasts is None:
         forecasts = pd.Series([])
     return forecasts
@@ -445,6 +474,13 @@ def get_forecasts_after(dt):
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index > dt]
+
+
+##############################################
+# Compute a feasible train-test split percentage
+##############################################
+def get_train_test_split_percent(actual_negative_sentiments, total_forecast_window_size):
+    return 1 - (int(total_forecast_window_size) / len(actual_negative_sentiments))
 
 
 #######################################

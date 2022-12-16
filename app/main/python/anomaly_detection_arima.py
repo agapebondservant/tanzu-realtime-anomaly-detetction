@@ -38,7 +38,7 @@ import re
 import pytz
 import math
 import json
-from app.main.python import feature_store, data_source, config
+from app.main.python import feature_store, data_source, config, anomaly_detection
 from app.main.python.utils import utils
 from app.main.python.metrics import prometheus_metrics_util
 
@@ -47,48 +47,32 @@ from app.main.python.metrics import prometheus_metrics_util
 # ANOMALY DETECTION
 ########################################################################################################################
 
-
 ########################
 # Ingest Data
 ########################
 def ingest_data():
-    logging.info('Ingest data...')
-    df = data_source.get_data()
-    return df
+    return anomaly_detection.ingest_data()
 
 
 #######################################
 # Set Global Values
 #######################################
 def initialize_input_features(data_freq, sliding_window_size, arima_order):
-    logging.info("Initializing input features...")
-    input_features = {
-        'data_freq': data_freq,
-        'sliding_window_size': sliding_window_size,
-        'arima_order': arima_order
-    }
-    feature_store.save_artifact(input_features, "anomaly_detection_input_features")
-    return input_features
+    return anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
 
 
 #######################################
 # Generate and Save EDA Artifacts
 #######################################
 def generate_and_save_eda_metrics(df):
-    logging.info("Generating and saving EDA metrics...")
-    data_summary = df.groupby('airline_sentiment').resample('1d').count()[['tweet_id']]
-    data_summary = data_summary.unstack(0)
-    data_summary['total'] = data_summary.sum(axis=1)
-    feature_store.save_artifact(data_summary, "anomaly_detection_eda")
-    return data_summary
+    return anomaly_detection.generate_and_save_eda_metrics(df)
 
 
 #############################
 # Filter Data
 #############################
 def filter_data(df, head=True, num_rows_head=None, num_rows_tail=None):
-    logging.info("Filtering by retrieving only required subset of data...")
-    return utils.filter_rows_by_head_or_tail(df, head, num_rows_head, num_rows_tail)
+    return anomaly_detection.filter_data(df, head, num_rows_head, num_rows_tail)
 
 
 #############################
@@ -96,76 +80,35 @@ def filter_data(df, head=True, num_rows_head=None, num_rows_tail=None):
 #############################
 
 def prepare_data(df, sample_frequency, extvars):
-    logging.info("Preparing data...")
-
-    # First perform data cleansing
-    df = cleanse_data(df)
-
-    data_buffers = extract_features(df, sample_frequency, extvars)
-    return data_buffers
+    return anomaly_detection.prepare_data(df, sample_frequency, extvars)
 
 
 #######################################
 # Perform data cleansing
 #######################################
 def cleanse_data(df):
-    logging.info("Cleansing data...")
-    return df
+    return anomaly_detection.cleanse_data(df)
 
 
 #######################################
 # Perform feature extraction via resampling
 #######################################
 def extract_features(df, sample_frequency='10min', extvars={}, is_partial_data=False):
-    logging.info("Performing feature extraction...")
-
-    df['sentiment'] = df['airline_sentiment'].map({'positive': 1, 'neutral': 0, 'negative': -1})
-
-    filtered_data_sets = get_filtered_data_sets(df, sample_frequency, extvars)
-
-    if is_partial_data is False:
-        feature_store.save_artifact(filtered_data_sets, 'anomaly_detection_buffers')
-
-    return filtered_data_sets
+    return anomaly_detection.extract_features(df, sample_frequency, extvars, is_partial_data)
 
 
 #######################################
 # Perform Data Standardization
 #######################################
 def standardize_data(buffers, extvars):
-    logging.info("Performing data standardization...")
-
-    actual_positive_sentiments, actual_negative_sentiments, actual_neutral_sentiments = \
-        buffers['actual_positive_sentiments'], \
-        buffers['actual_negative_sentiments'], \
-        buffers['actual_neutral_sentiments']
-
-    buffers['actual_positive_sentiments'][['sentiment_normalized']] = \
-        extvars['anomaly_positive_standard_scalar'].fit_transform(actual_positive_sentiments[['sentiment']])
-    buffers['actual_negative_sentiments'][['sentiment_normalized']] = \
-        extvars['anomaly_negative_standard_scalar'].fit_transform(actual_negative_sentiments[['sentiment']])
-    buffers['actual_neutral_sentiments'][['sentiment_normalized']] = \
-        extvars['anomaly_neutral_standard_scalar'].fit_transform(actual_neutral_sentiments[['sentiment']])
-
-    return buffers
+    return anomaly_detection.standardize_data(buffers, extvars)
 
 
 #######################################
 # Initialize Data Buffers
 #######################################
 def get_filtered_data_sets(df, sample_frequency, extvars):
-    logging.info("Generate and save data buffers to use for stream processing...")
-
-    data_buffers = {
-        'total_sentiments': df,
-        'actual_positive_sentiments': df[df['sentiment'] == 1].resample(f'{sample_frequency}').count(),
-        'actual_negative_sentiments': df[df['sentiment'] == -1].resample(f'{sample_frequency}').count(),
-        'actual_neutral_sentiments': df[df['sentiment'] == 0].resample(f'{sample_frequency}').count()
-    }
-
-    data_buffers = standardize_data(data_buffers, extvars)
-
-    return data_buffers
+    return anomaly_detection.get_filtered_data_sets(df, sample_frequency, extvars)
 
 
 #######################################

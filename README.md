@@ -195,7 +195,9 @@ docker push oawofolu/streamlit
 ### Deploy Apps to Kubernetes
 ```
 kubectl create ns streamlit
-kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_stage=Production
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_model --model_stage=Staging
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_rnn --model_stage=Staging
 kubectl create deployment streamlit-tracker --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/tracker.py
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=dashboard-svc --type=LoadBalancer -nstreamlit
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=tracker-svc --type=LoadBalancer -nstreamlit

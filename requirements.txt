@@ -30,3 +30,4 @@ modin[ray]
 uvicorn[standard]
 gunicorn
 boto3
+tensorflow

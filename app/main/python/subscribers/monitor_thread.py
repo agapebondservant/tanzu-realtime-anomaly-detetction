@@ -1,5 +1,6 @@
 import threading
-from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
+# from streamlit.scriptrunner.script_run_context import get_script_run_ctx, add_script_run_ctx
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 from app.main.python.utils import utils
 
 
