@@ -172,17 +172,24 @@ python -c "from app.main.python import main; print(main.sentiment_analysis_infer
 python -c "from app.main.python import main; print(main.anomaly_detection_training_pipeline('data/airlinetweets.csv', 'day'))"
 ```
 
-* Launch dashboard:
+* Regenerate pipfile for local use (after updating requirements.txt):
 ```
-pipenv install
-pipenv shell
-python -m streamlit run app/main/python/ui/dashboard.py --logger.level=info
+pipenv install -r requirements-dev.txt
 ```
 
-* Launch tracker:
+* Launch dashboard locally:
 ```
 pipenv install
 pipenv shell
+pip install -r requirements-dev.txt
+RAY_ADDRESS=<your Ray address> python -m streamlit run app/main/python/ui/dashboard.py --logger.level=info model_name=app.main.python.anomaly_detection_rnn model_stage=Staging
+```
+
+* Launch tracker locally:
+```
+pipenv install
+pipenv shell
+pip install -r requirements-dev.txt
 python -m streamlit run app/main/python/ui/tracker.py --logger.level=info
 ```
 
@@ -193,8 +200,10 @@ docker push oawofolu/streamlit
 ```
 
 ### Deploy Apps to Kubernetes
+NOTE: Requires RabbitMQ topology (see "Set up RabbitMQ connection"):
+
+* Deploy apps:
 ```
-kubectl create ns streamlit
 kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_stage=Production
 kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_model --model_stage=Staging
 kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_rnn --model_stage=Staging
@@ -207,4 +216,25 @@ watch kubectl get all -nstreamlit
 ```
 
 ### Set up RabbitMQ connection
-* Update DNS settings for the RabbitMQ service:
+
+* Deploy RabbitMQ topology:
+```
+git clone git@github.com:agapebondservant/tap-data.git
+cd tap-data
+
+kubectl create ns streamlit
+
+kubectl get all -o name -n streamlit | xargs kubectl delete -n streamlit
+watch kubectl get all -n streamlit #click Ctrl^C when Ready
+
+kubectl apply -f other/resources/analytics/anomaly-detection-demo/rabbitmq-analytics-cluster.yaml -nstreamlit
+watch kubectl get all -n streamlit #click Ctrl^C when Ready
+
+kubectl apply -f other/resources/analytics/anomaly-detection-demo/rabbitmq-analytics-topology.yaml -nstreamlit
+watch kubectl get all -n streamlit #click Ctrl^C when Ready
+
+kubectl apply -f other/resources/analytics/anomaly-detection-demo/rabbitmq-analytics-bindings.yaml -nstreamlit
+watch kubectl get all -n streamlit #click Ctrl^C when Ready
+
+cd -
+```
