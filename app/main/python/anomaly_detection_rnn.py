@@ -184,7 +184,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 #######################################
 # Build RNN model
 #######################################
-def build_rnn_model(actual_negative_sentiments, sliding_window_size=144, data_freq='10min', rebuild=False):
+def build_model(actual_negative_sentiments, sliding_window_size=144, data_freq='10min', rebuild=False):
     logging.info("Build RNN model...")
 
     generator = feature_store.load_artifact('anomaly_timeseries')
@@ -235,7 +235,7 @@ def build_timeseries_generator(actual_negative_sentiments, training_window_size,
 #######################################
 # Train/Validate RNN Model To Generate Results
 #######################################
-def train_rnn_model(training_window_size, stepwise_fit, actual_negative_sentiments, sliding_window_size=144):
+def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, sliding_window_size=144):
     logging.info(f"Train RNN model...")
 
     # generate batch_length - number of outputs per batch; generator batch size; number of features
@@ -289,12 +289,20 @@ def train_rnn_model(training_window_size, stepwise_fit, actual_negative_sentimen
 
 
 #######################################
+# Load RNN model
+#######################################
+def load_model():
+    logging.info("Loading RNN model...")
+    return feature_store.load_artifact('anomaly_rnn_model')
+
+
+#######################################
 # Test RNN Model
 #######################################
 def test_rnn_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info('Testing RNN model...')
 
-    return generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
+    return generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
                                   actual_negative_sentiments)
 
 
@@ -400,7 +408,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
 #######################################
 # Generate RNN Forecasts
 #######################################
-def generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
+def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
                            rebuild=False,
                            total_training_window=1440):
     logging.info("Generate RNN predictions...")
@@ -435,7 +443,7 @@ def generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fi
 
     predictions = standard_scaler_rnn.inverse_transform(np.reshape(scaled_predictions, (num_predictions, 1)))
 
-    rnn_predictions = pd.concat([get_prior_rnn_forecasts(), pd.Series(predictions.reshape(-1))])[
+    rnn_predictions = pd.concat([get_prior_forecasts(), pd.Series(predictions.reshape(-1))])[
                       -len(actual_negative_sentiments_test):]
 
     rnn_predictions.reindex(actual_negative_sentiments_test.index)
@@ -450,7 +458,7 @@ def generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fi
 # Get any prior forecasts
 #######################################
 
-def get_prior_rnn_forecasts():
+def get_prior_forecasts():
     forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
     if forecasts is None:
         forecasts = pd.Series([])

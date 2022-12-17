@@ -112,9 +112,9 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
 
         # Plot positive/negative trends
         fig = settings.anomaly_detection.plot_positive_negative_trends(buffers['total_sentiments'],
-                                                              buffers['actual_positive_sentiments'],
-                                                              buffers['actual_negative_sentiments'],
-                                                              timeframe=reporting_timeframe)
+                                                                       buffers['actual_positive_sentiments'],
+                                                                       buffers['actual_negative_sentiments'],
+                                                                       timeframe=reporting_timeframe)
 
         return fig
 
@@ -162,39 +162,40 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
         # Perform ADF test
         adf_results = settings.anomaly_detection.generate_and_save_adf_results(buffers['actual_negative_sentiments'])
         settings.anomaly_detection.generate_and_save_stationarity_results(buffers['actual_negative_sentiments'],
-                                                                 estimated_seasonality_hours)
+                                                                          estimated_seasonality_hours)
 
         # Check for stationarity
         logging.info(f'Stationarity : {settings.anomaly_detection.check_stationarity(adf_results)}')
         logging.info(f'P-value : {adf_results[1]}')
 
-        # Build an ARIMA model (or reuse existing one if this is not rebuild mode)
-        stepwise_fit = settings.anomaly_detection.build_arima_model(buffers['actual_negative_sentiments'], rebuild)
+        # Build a predictive model (or reuse existing one if this is not rebuild mode)
+        stepwise_fit = settings.anomaly_detection.build_model(buffers['actual_negative_sentiments'], rebuild)
 
         # Perform training
-        model_arima_results = settings.anomaly_detection.train_arima_model(total_training_window, stepwise_fit,
-                                                                  buffers['actual_negative_sentiments'])
+        model_results = settings.anomaly_detection.train_model(total_training_window, stepwise_fit,
+                                                               buffers['actual_negative_sentiments'])
 
         # Perform forecasting
-        model_arima_forecasts = settings.anomaly_detection.generate_arima_forecasts(sliding_window_size,
-                                                                           total_forecast_window,
-                                                                           stepwise_fit,
-                                                                           buffers['actual_negative_sentiments'],
-                                                                           rebuild)
+        model_forecasts = settings.anomaly_detection.generate_forecasts(sliding_window_size,
+                                                                        total_forecast_window,
+                                                                        stepwise_fit,
+                                                                        buffers[
+                                                                            'actual_negative_sentiments'],
+                                                                        rebuild)
 
         # Detect anomalies
-        model_arima_results_full = settings.anomaly_detection.detect_anomalies(model_arima_results.fittedvalues,
-                                                                      total_training_window,
-                                                                      buffers['actual_negative_sentiments'])
+        model_results_full = settings.anomaly_detection.detect_anomalies(model_results.fittedvalues,
+                                                                         total_training_window,
+                                                                         buffers['actual_negative_sentiments'])
 
         # Plot anomalies
         fig = settings.anomaly_detection.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
-                                                          model_arima_results_full,
-                                                          model_arima_forecasts,
-                                                          total_training_window,
-                                                          stepwise_fit,
-                                                          extvars,
-                                                          reporting_timeframe)
+                                                                   model_results_full,
+                                                                   model_forecasts,
+                                                                   total_training_window,
+                                                                   stepwise_fit,
+                                                                   extvars,
+                                                                   reporting_timeframe)
 
         # TEMPORARY: Set a flag indicating that training was done
         feature_store.save_artifact(True, 'is_trained')
@@ -228,34 +229,35 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         # Prepare Data
         buffers = settings.anomaly_detection.prepare_data(data, sample_frequency, extvars)
 
-        # Retrieve auto-arima model
+        # Retrieve stepwise_fit (used by ARIMA model)
         stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
 
         # Retrieve training results
-        model_arima_results = feature_store.load_artifact('anomaly_arima_model_results')
+        model_results = settings.anomaly_detection.get_prior_forecasts()
 
         # Last Published Date
         last_published_date = utils.get_max_index(buffers['actual_negative_sentiments'])
 
         # Get latest predictions
-        model_arima_predictions = settings.anomaly_detection.get_predictions_before_or_at(last_published_date)
+        model_predictions = settings.anomaly_detection.get_predictions_before_or_at(last_published_date)
 
         # Get latest forecasts
-        model_arima_forecasts = settings.anomaly_detection.get_forecasts_after(last_published_date)
+        model_forecasts = settings.anomaly_detection.get_forecasts_after(last_published_date)
 
         # Detect anomalies
-        model_arima_results_full = settings.anomaly_detection.detect_anomalies(model_arima_results.fittedvalues.append(model_arima_predictions),
-                                                                      total_training_window,
-                                                                      buffers['actual_negative_sentiments'])
+        model_results_full = settings.anomaly_detection.detect_anomalies(
+            model_results.fittedvalues.append(model_predictions),
+            total_training_window,
+            buffers['actual_negative_sentiments'])
 
         # Plot anomalies
         fig = settings.anomaly_detection.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
-                                                          model_arima_results_full,
-                                                          model_arima_forecasts,
-                                                          total_training_window,
-                                                          stepwise_fit,
-                                                          extvars,
-                                                          reporting_timeframe)
+                                                                   model_results_full,
+                                                                   model_forecasts,
+                                                                   total_training_window,
+                                                                   stepwise_fit,
+                                                                   extvars,
+                                                                   reporting_timeframe)
 
         return fig
 

@@ -252,7 +252,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 #######################################
 # Perform Auto ARIMA to build model
 #######################################
-def build_arima_model(actual_negative_sentiments, rebuild=False):
+def build_model(actual_negative_sentiments, rebuild=False):
     logging.info("Running auto_arima to build ARIMA model...")
     stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
 
@@ -268,7 +268,7 @@ def build_arima_model(actual_negative_sentiments, rebuild=False):
 #######################################
 # Train ARIMA Model To Generate Results
 #######################################
-def train_arima_model(training_window_size, stepwise_fit, actual_negative_sentiments):
+def train_model(training_window_size, stepwise_fit, actual_negative_sentiments):
     logging.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(training_window_size)]
 
@@ -291,7 +291,7 @@ def train_arima_model(training_window_size, stepwise_fit, actual_negative_sentim
 def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info('Testing ARIMA model...')
 
-    return generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
+    return generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
                                     actual_negative_sentiments)
 
 
@@ -397,7 +397,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
 #######################################
 # Generate ARIMA Forecasts
 #######################################
-def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
+def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
                              rebuild=False):
     logging.info("Generate ARIMA predictions...")
     # The dataset to forecast with
@@ -413,7 +413,7 @@ def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_
     end_idx = len(df) - num_lags
 
     # Get any prior ARIMA forecasts
-    predictions = get_prior_arima_forecasts()
+    predictions = get_prior_forecasts()
 
     for idx in np.arange(num_sliding_windows):
         # Compute the start & end indexes
@@ -437,7 +437,7 @@ def generate_arima_forecasts(sliding_window_size, total_forecast_size, stepwise_
 # Get any prior forecasts
 #######################################
 
-def get_prior_arima_forecasts():
+def get_prior_forecasts():
     forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
     if forecasts is None:
         forecasts = pd.Series([])
