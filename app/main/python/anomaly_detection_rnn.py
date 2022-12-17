@@ -1,6 +1,10 @@
 ########################
 # Imports
 ########################
+import ray
+import os
+ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
+                      'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
 import modin.pandas as pd
 import numpy as np
 import logging
@@ -62,8 +66,8 @@ def ingest_data():
 #######################################
 # Set Global Values
 #######################################
-def initialize_input_features(data_freq, sliding_window_size, arima_order):
-    return anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
+def initialize_input_features(data_freq, sliding_window_size, rnn_order):
+    return anomaly_detection.initialize_input_features(data_freq, sliding_window_size, rnn_order)
 
 
 #######################################
@@ -287,7 +291,7 @@ def train_rnn_model(training_window_size, stepwise_fit, actual_negative_sentimen
 #######################################
 # Test RNN Model
 #######################################
-def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
+def test_rnn_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
     logging.info('Testing RNN model...')
 
     return generate_rnn_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
@@ -310,32 +314,32 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     logging.info(f"anomalies for...{df_total} {predictions}")
     mae = median_absolute_error(df_total, predictions)
 
-    model_arima_results_full = \
+    model_rnn_results_full = \
         pd.DataFrame({'fittedvalues': predictions, 'median_values': predictions.rolling(4).median().fillna(0)},
                      index=predictions.index)
-    model_arima_results_full['threshold'] = model_arima_results_full['median_values'] + (
+    model_rnn_results_full['threshold'] = model_rnn_results_full['median_values'] + (
             z_score / mae_scale_factor) * mae
-    model_arima_results_full['anomaly'] = 0
+    model_rnn_results_full['anomaly'] = 0
 
-    model_arima_results_full['actualvalues'] = df_total
-    model_arima_results_full['actualvalues'].fillna(0, inplace=True)
+    model_rnn_results_full['actualvalues'] = df_total
+    model_rnn_results_full['actualvalues'].fillna(0, inplace=True)
 
-    model_arima_results_full.loc[
-        model_arima_results_full['actualvalues'] > model_arima_results_full['threshold'], 'anomaly'] = 1
+    model_rnn_results_full.loc[
+        model_rnn_results_full['actualvalues'] > model_rnn_results_full['threshold'], 'anomaly'] = 1
 
-    print(f"Anomaly distribution: \n{model_arima_results_full['anomaly'].value_counts()}")
+    print(f"Anomaly distribution: \n{model_rnn_results_full['anomaly'].value_counts()}")
 
     # TODO: Publish anomaly summary to queue
     feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments')
     publish_trend_stats(actual_negative_sentiments)
 
-    return model_arima_results_full
+    return model_rnn_results_full
 
 
 #######################################
 # Plot Trend with Anomalies
 #######################################
-def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_full, model_arima_forecasts,
+def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full, model_rnn_forecasts,
                               sliding_window_size,
                               stepwise_fit,
                               extvars,
@@ -343,39 +347,39 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
     logging.info("Plot trend with anomalies...")
 
     # Set start_date, end_date
-    end_date = utils.get_max_index(model_arima_forecasts)
-    logging.info(f"end date is {end_date} {model_arima_forecasts}")
+    end_date = utils.get_max_index(model_rnn_forecasts)
+    logging.info(f"end date is {end_date} {model_rnn_forecasts}")
     start_date = end_date - timedelta(hours=get_time_lags(timeframe))
-    marker_date_start = utils.get_min_index(model_arima_forecasts)
-    marker_date_end = utils.get_max_index(model_arima_forecasts)
+    marker_date_start = utils.get_min_index(model_rnn_forecasts)
+    marker_date_end = utils.get_max_index(model_rnn_forecasts)
 
     standard_scalar = extvars['anomaly_negative_standard_scalar']
     inverse_scaled = pd.DataFrame(
-        standard_scalar.inverse_transform(model_arima_results_full[['actualvalues', 'fittedvalues']]),
+        standard_scalar.inverse_transform(model_rnn_results_full[['actualvalues', 'fittedvalues']]),
         columns=['actualvalues', 'fittedvalues'],
-        index=model_arima_results_full.index)
+        index=model_rnn_results_full.index)
 
     logging.info(f"Inverse scaled values: {inverse_scaled}")
 
     fitted_values_actual = inverse_scaled['actualvalues']
     fitted_values_predicted = inverse_scaled['fittedvalues']
-    fitted_values_forecasted = pd.DataFrame(standard_scalar.inverse_transform(pd.DataFrame(model_arima_forecasts)),
+    fitted_values_forecasted = pd.DataFrame(standard_scalar.inverse_transform(pd.DataFrame(model_rnn_forecasts)),
                                             columns=['forecastvalues'],
-                                            index=model_arima_forecasts.index)['forecastvalues']
+                                            index=model_rnn_forecasts.index)['forecastvalues']
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
     # TODO: Publish metrics to queue
-    prometheus_metrics_util.send_arima_mae(mae_error)
+    prometheus_metrics_util.send_rnn_mae(mae_error)
 
     # Plot curves
     fig, ax = plt.subplots(figsize=(14, 5))
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
-    ax.plot(fitted_values_predicted, label=f"ARIMA {stepwise_fit.order} Predictions", color='orange')
+    ax.plot(fitted_values_predicted, label=f"RNN Predictions", color='orange')
     ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=2)
-    ax.plot(fitted_values_actual.loc[model_arima_results_full['anomaly'] == 1],
+    ax.plot(fitted_values_actual.loc[model_rnn_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies")
     ax.axvspan(marker_date_start, marker_date_end, alpha=0.5, color='green')
 
@@ -388,7 +392,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
         ax.plot(fitted_values_actual_test, label="Test", color="yellow")
 
     ax.legend()
-    fig.suptitle(f"ARIMA Model: \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
+    fig.suptitle(f"RNN Model: \n Median Absolute Error (MAE): {mae_error}", fontsize=16)
 
     return fig
 
@@ -458,7 +462,7 @@ def get_prior_rnn_forecasts():
 ##############################################
 
 def get_predictions_before_or_at(dt):
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
     logging.info(f"forecasts is {dt} {forecasts}")
     if forecasts is None:
         return pd.Series([])
@@ -470,7 +474,7 @@ def get_predictions_before_or_at(dt):
 ##############################################
 
 def get_forecasts_after(dt):
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index > dt]

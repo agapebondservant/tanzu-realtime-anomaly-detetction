@@ -2,12 +2,16 @@ import streamlit as st
 import logging
 from app.main.python.ui import dashboard_widgets
 from app.main.python import main, config
+from app.main.python.utils import utils
 import time
 from streamlit_autorefresh import st_autorefresh
+from app.main.python.settings import settings
 
 
 # Initializations
 main.initialize()
+settings.model_name = utils.get_cmd_arg('model_name')
+settings.model_stage = utils.get_cmd_arg('model_stage')
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
 

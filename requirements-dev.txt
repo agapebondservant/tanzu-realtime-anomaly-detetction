@@ -19,7 +19,7 @@ pika
 Pillow
 streamlit-autorefresh
 jupyterflow
-https://files.pythonhosted.org/packages/ab/88/dc597fdadd74b1a2fe7d4e4fb56f44a2b444a01b76ec35f31c7eee28f2d0/ray-2.1.0-cp310-cp310-manylinux2014_x86_64.whl #ray[default]==2.1.0
+https://files.pythonhosted.org/packages/bd/1a/45fc8084873d58419b0b1b1f2f8303e84706adc8478c63d4ed19e9919445/ray-2.1.0-cp310-cp310-macosx_10_15_universal2.whl
 https://github.com/agapebondservant/ml-metrics-accelerator/zipball/main
 lz4
 pyyaml

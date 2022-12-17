@@ -1,6 +1,11 @@
 ########################
 # Imports
 ########################
+import sys
+import ray
+import os
+ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
+                      'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
 import modin.pandas as pd
 import numpy as np
 import logging
@@ -46,6 +51,21 @@ from app.main.python.metrics import prometheus_metrics_util
 ########################################################################################################################
 # ANOMALY DETECTION
 ########################################################################################################################
+
+########################
+# Use the Specified Model
+# or default if none is specified
+########################
+def use_model(model):
+    logging.info(f"Setting up anomaly detection module...{model}")
+    if model is None:
+        return sys.modules[__name__]
+    else:
+        try:
+            return sys.modules[model]
+        except KeyError as e:
+            logging.error(f"ERROR: No module found named {model}")
+            raise e
 
 
 ########################

@@ -1,10 +1,39 @@
 import json
 from datetime import datetime
 import pytz
+import ray
+import os
+ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
+                      'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
 import modin.pandas as pd
 import logging
 import traceback
 from app.main.python import feature_store, config
+from collections import defaultdict
+import sys
+
+################################################
+# Command Line Utils
+#
+################################################
+
+
+def get_cmd_arg(name):
+    d = defaultdict(list)
+    for cmd_args in sys.argv[1:]:
+        cmd_arg = cmd_args.split('=')
+        if len(cmd_arg) == 2:
+            d[cmd_arg[0].lstrip('-')].append(cmd_arg[1])
+
+    if name in d:
+        return d[name][0]
+    else:
+        logging.info('Unknown command line arg requested: {}'.format(name))
+
+################################################
+# Dataframe Utils
+#
+################################################
 
 
 def dataframe_record_as_json_string(row, date_index, orientation):
