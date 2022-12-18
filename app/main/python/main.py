@@ -125,14 +125,15 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
-    return feature_store.load_artifact('is_trained') is None
+    return True  # feature_store.load_artifact('is_trained') is None
 
 
 def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, rebuild=False):
     logging.info("Starting Anomaly Detection Training Pipeline.......................")
 
     # Input features
-    data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.80
+    data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
+    logging.info(f"Params: data_freq={data_freq}, sliding_winow_size={sliding_window_size}, training_percent={training_percent}")
 
     # Other required variables
 
@@ -150,7 +151,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
 
         # Determine the training window
         if rebuild:
-            total_training_window = training_percent * len(buffers['actual_negative_sentiments'])
+            total_training_window = int(training_percent * len(buffers['actual_negative_sentiments']))
             total_forecast_window = len(buffers['actual_negative_sentiments']) - total_training_window
         else:
             total_training_window = len(buffers['actual_negative_sentiments'])
@@ -184,7 +185,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
                                                                         rebuild)
 
         # Detect anomalies
-        model_results_full = settings.anomaly_detection.detect_anomalies(model_results.fittedvalues,
+        model_results_full = settings.anomaly_detection.detect_anomalies(model_results,  # fittedvalues,
                                                                          total_training_window,
                                                                          buffers['actual_negative_sentiments'])
 
@@ -246,7 +247,7 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
 
         # Detect anomalies
         model_results_full = settings.anomaly_detection.detect_anomalies(
-            model_results.fittedvalues.append(model_predictions),
+            model_results.append(model_predictions),
             total_training_window,
             buffers['actual_negative_sentiments'])
 

@@ -40,7 +40,7 @@ def show_anomalies(timeframe):
             logging.info('Showing anomalies in Dashboard...')
 
             if main.anomaly_detection_needs_training():
-                main.anomaly_detection_training_pipeline(sample_freq, timeframe)
+                main.anomaly_detection_training_pipeline(sample_freq, timeframe, rebuild=True)
             fig = main.anomaly_detection_inference_pipeline(sample_freq, timeframe)
             st.pyplot(fig)
 

@@ -7,7 +7,7 @@ import os
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
                       'env_vars': dict(os.environ),
                       'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
-import modin.pandas as pd
+import pandas as pd
 import numpy as np
 import logging
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -219,7 +219,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments):
 
     feature_store.save_artifact(model_arima_results, 'anomaly_arima_model_results')
 
-    return model_arima_results
+    return model_arima_results.fittedvalues
 
 
 #######################################

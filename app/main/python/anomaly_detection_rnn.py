@@ -3,9 +3,11 @@
 ########################
 import ray
 import os
+
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
-                      'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
-import modin.pandas as pd
+                      'env_vars': dict(os.environ),
+                      'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
+import pandas as pd
 import numpy as np
 import logging
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -208,6 +210,8 @@ def build_timeseries_generator(actual_negative_sentiments, training_window_size,
     # actual_negative_sentiments_train = actual_negative_sentiments.iloc[:-total_test_window].dropna()
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
 
+    logging.info(f"Size of training set: {len(actual_negative_sentiments_train)}")
+
     # number of outputs per batch
     batch_length = sliding_window_size
 
@@ -241,6 +245,8 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     # generate batch_length - number of outputs per batch; generator batch size; number of features
     batch_length, timeseries_batch_size, num_features, num_weights = sliding_window_size, 1, 1, 150
 
+    logging.info(f"Using batch_length={batch_length}, training_window_size={training_window_size}")
+
     # set up model
     rnn_model = Sequential()
 
@@ -253,15 +259,18 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     rnn_model.summary()
 
     # get the training generator
-    generator = build_timeseries_generator(actual_negative_sentiments, training_window_size)
+    generator = build_timeseries_generator(actual_negative_sentiments, training_window_size, sliding_window_size)
 
     # set up Early Stopping
     early_stop = EarlyStopping(monitor='val_loss', patience=2)
 
     standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
 
+    logging.info(f"Standard scaler: {standard_scaler_rnn}")
+
     # set the test data
     # actual_negative_sentiments_test = actual_negative_sentiments.iloc[-total_test_window:].dropna()
+    actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
     actual_negative_sentiments_test = actual_negative_sentiments.iloc[training_window_size:].dropna()
 
     scaled_test = standard_scaler_rnn.transform(actual_negative_sentiments_test[['sentiment']])
@@ -287,6 +296,11 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     # save the model
     feature_store.save_artifact(rnn_model, 'anomaly_rnn_model')
 
+    return generate_forecasts_from_timeseries_generator(rnn_model,
+                                                        sliding_window_size,
+                                                        standard_scaler_rnn,
+                                                        actual_negative_sentiments_train, actual_negative_sentiments_test)
+
 
 #######################################
 # Load RNN model
@@ -303,7 +317,7 @@ def test_rnn_model(sliding_window_size, total_forecast_size, stepwise_fit, actua
     logging.info('Testing RNN model...')
 
     return generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
-                                  actual_negative_sentiments)
+                              actual_negative_sentiments)
 
 
 #######################################
@@ -315,10 +329,9 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
 
-    predictions = predictions.iloc[:int(window_size)]
+    predictions = predictions[:int(window_size)]
 
-    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:int(window_size)]
-    # mae = median_absolute_error(df_total.iloc[-int(window_size):], predictions)
+    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:-int(window_size)]
     logging.info(f"anomalies for...{df_total} {predictions}")
     mae = median_absolute_error(df_total, predictions)
 
@@ -409,8 +422,8 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
 # Generate RNN Forecasts
 #######################################
 def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
-                           rebuild=False,
-                           total_training_window=1440):
+                       rebuild=False,
+                       total_training_window=1440):
     logging.info("Generate RNN predictions...")
 
     # The dataset to forecast with
@@ -421,14 +434,26 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         actual_negative_sentiments_train = actual_negative_sentiments
         actual_negative_sentiments_test = pd.DataFrame()
 
-    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
-    scaled_train = standard_scaler_rnn.transform(actual_negative_sentiments_train[['sentiment']])
-    scaled_test = standard_scaler_rnn.transform(actual_negative_sentiments_test[['sentiment']])
-
-    num_predictions, num_features, batch_length = len(scaled_test), 1, sliding_window_size
-
     # Load the model
     rnn_model = feature_store.load_artifact('anomaly_rnn_model')
+
+    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
+
+    return generate_forecasts_from_timeseries_generator(rnn_model,
+                                                        sliding_window_size,
+                                                        standard_scaler_rnn,
+                                                        actual_negative_sentiments_train, actual_negative_sentiments_test)
+
+
+#######################################
+# Generate RNN Forecasts from Timeseries Generator
+#######################################
+def generate_forecasts_from_timeseries_generator(rnn_model, sliding_window_size, standard_scaler, actual_negative_sentiments_train, actual_negative_sentiments_test):
+    scaled_train = standard_scaler.transform(actual_negative_sentiments_train[['sentiment']])
+
+    scaled_test = standard_scaler.transform(actual_negative_sentiments_test[['sentiment']])
+
+    num_predictions, num_features, batch_length = len(scaled_test), 1, sliding_window_size
 
     eval_batch = scaled_train[-batch_length:].reshape(1, batch_length, num_features)
 
@@ -441,12 +466,12 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 
         scaled_predictions.append(scaled_prediction)
 
-    predictions = standard_scaler_rnn.inverse_transform(np.reshape(scaled_predictions, (num_predictions, 1)))
+    predictions = standard_scaler.inverse_transform(np.reshape(scaled_predictions, (num_predictions, 1)))
 
     rnn_predictions = pd.concat([get_prior_forecasts(), pd.Series(predictions.reshape(-1))])[
                       -len(actual_negative_sentiments_test):]
 
-    rnn_predictions.reindex(actual_negative_sentiments_test.index)
+    rnn_predictions = rnn_predictions.reindex(actual_negative_sentiments_test.inde)
 
     # Store predictions
     feature_store.save_artifact(rnn_predictions, 'anomaly_rnn_forecasts')
@@ -457,7 +482,6 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 #######################################
 # Get any prior forecasts
 #######################################
-
 def get_prior_forecasts():
     forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
     if forecasts is None:

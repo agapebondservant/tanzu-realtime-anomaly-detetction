@@ -2,7 +2,7 @@ import ray
 import os
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
                       'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
-import modin.pandas as pd
+import pandas as pd
 from app.main.python import feature_store, config
 from app.main.python.utils import utils
 
