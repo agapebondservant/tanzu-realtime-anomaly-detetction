@@ -46,7 +46,7 @@ import math
 import json
 from app.main.python import feature_store, data_source, config, anomaly_detection
 from app.main.python.utils import utils
-from app.main.python.metrics import prometheus_metrics_util
+from mlmetrics import exporter
 
 
 ########################################################################################################################
@@ -205,7 +205,8 @@ def load_model():
 #######################################
 # Train ARIMA Model To Generate Results
 #######################################
-def train_model(training_window_size, stepwise_fit, actual_negative_sentiments):
+def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, rebuild=False,
+                data_freq=10):
     logging.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(training_window_size)]
 
@@ -241,9 +242,9 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
 
-    predictions = predictions.iloc[:int(window_size)]
+    predictions = predictions.iloc[-int(window_size):]
 
-    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:int(window_size)]
+    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:int(window_size)].iloc[-len(predictions):]
     # mae = median_absolute_error(df_total.iloc[-int(window_size):], predictions)
     logging.info(f"anomalies for...{df_total} {predictions}")
     mae = median_absolute_error(df_total, predictions)
@@ -277,15 +278,9 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
                               sliding_window_size,
                               stepwise_fit,
                               extvars,
-                              timeframe='hour'):
+                              timeframe='hour',
+                              data_freq=10):
     logging.info("Plot trend with anomalies...")
-
-    # Set start_date, end_date
-    end_date = utils.get_max_index(model_arima_forecasts)
-    logging.info(f"end date is {end_date} {model_arima_forecasts}")
-    start_date = end_date - timedelta(hours=get_time_lags(timeframe))
-    marker_date_start = utils.get_min_index(model_arima_forecasts)
-    marker_date_end = utils.get_max_index(model_arima_forecasts)
 
     standard_scalar = extvars['anomaly_negative_standard_scalar']
     inverse_scaled = pd.DataFrame(
@@ -299,23 +294,34 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
     fitted_values_predicted = inverse_scaled['fittedvalues']
     fitted_values_forecasted = pd.DataFrame(standard_scalar.inverse_transform(pd.DataFrame(model_arima_forecasts)),
                                             columns=['forecastvalues'],
-                                            index=model_arima_forecasts.index)['forecastvalues']
+                                            index=model_arima_forecasts.index)['forecastvalues'] if len(
+        model_arima_forecasts) else None
+
+    # Set start_date, end_date
+    target = model_arima_forecasts if len(model_arima_forecasts) else fitted_values_actual
+    end_date = utils.get_current_datetime()
+    start_date = end_date - timedelta(hours=get_time_lags(timeframe))
+    logging.info(f"end date = {end_date}, start date = {start_date}, target = {target}")
+    marker_date_end = end_date if fitted_values_forecasted is not None else None
+    marker_date_start = max(end_date - timedelta(minutes=data_freq * len(target)), utils.get_max_index(target)) if fitted_values_forecasted is not None else None
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
     # TODO: Publish metrics to queue
-    prometheus_metrics_util.send_arima_mae(mae_error)
+    exporter.prepare_histogram('anomaly_mae_error',
+                               'Anomaly MAE Error',
+                               {'scdf_run_tag': 'v1.0', 'scdf_run_step': 'plot_anomalies'}, mae_error)
 
     # Plot curves
     fig, ax = plt.subplots(figsize=(14, 5))
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, label=f"ARIMA {stepwise_fit.order} Predictions", color='orange')
-    ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=2)
+    ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=2) if fitted_values_forecasted is not None else True
     ax.plot(fitted_values_actual.loc[model_arima_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies")
-    ax.axvspan(marker_date_start, marker_date_end, alpha=0.5, color='green')
+    ax.axvspan(marker_date_start, marker_date_end, alpha=0.5, color='green') if fitted_values_forecasted is not None else True
 
     # Include plots for test data if applicable
     test_data = total_negative_sentiments[['sentiment_normalized']].iloc[int(sliding_window_size):]
@@ -335,16 +341,23 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
 # Generate ARIMA Forecasts
 #######################################
 def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
-                       rebuild=False):
+                       rebuild=False,
+                       total_training_window=144):
     logging.info("Generate ARIMA predictions...")
-    # The dataset to forecast with
-    df = actual_negative_sentiments.iloc[:-int(total_forecast_size)] if rebuild else actual_negative_sentiments
 
     # The number of forecasts per sliding window will be the number of AR or MA lags, as ARIMA can't forecast beyond that
-    num_lags = max(stepwise_fit.order[0], stepwise_fit.order[2])
+    num_lags = max(stepwise_fit.order[0], max(stepwise_fit.order[2], 1))
 
     # The number of sliding windows will be ( total forecast size / num_lags )
     num_sliding_windows = math.ceil(total_forecast_size / num_lags)
+
+    # The dataset to forecast with
+    if rebuild:
+        num_shifts = total_training_window + total_forecast_size - len(actual_negative_sentiments)
+        df = actual_negative_sentiments.iloc[:int(total_training_window)]
+        df = utils.get_next_rolling_window(df, num_shifts) if num_shifts else df
+    else:
+        df = utils.get_next_rolling_window(actual_negative_sentiments, total_forecast_size)
 
     # Initialize the start & end indexes
     end_idx = len(df) - num_lags

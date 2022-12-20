@@ -51,6 +51,7 @@ from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
+from mlmetrics import exporter
 
 
 ########################################################################################################################
@@ -186,7 +187,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 #######################################
 # Build RNN model
 #######################################
-def build_model(actual_negative_sentiments, sliding_window_size=144, data_freq='10min', rebuild=False):
+def build_model(actual_negative_sentiments, sliding_window_size=144, data_freq=10, rebuild=False):
     logging.info("Build RNN model...")
 
     generator = feature_store.load_artifact('anomaly_timeseries')
@@ -204,10 +205,7 @@ def build_model(actual_negative_sentiments, sliding_window_size=144, data_freq='
 # Build a Timeseries generator for the RNN Model
 ##############################################################################
 def build_timeseries_generator(actual_negative_sentiments, training_window_size, sliding_window_size):
-    # total_test_window = int(sliding_window_size * 2)
-
     # The training data
-    # actual_negative_sentiments_train = actual_negative_sentiments.iloc[:-total_test_window].dropna()
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
 
     logging.info(f"Size of training set: {len(actual_negative_sentiments_train)}")
@@ -239,7 +237,8 @@ def build_timeseries_generator(actual_negative_sentiments, training_window_size,
 #######################################
 # Train/Validate RNN Model To Generate Results
 #######################################
-def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, sliding_window_size=144):
+def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, sliding_window_size=144, rebuild=False,
+                data_freq=10):
     logging.info(f"Train RNN model...")
 
     # generate batch_length - number of outputs per batch; generator batch size; number of features
@@ -269,9 +268,10 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     logging.info(f"Standard scaler: {standard_scaler_rnn}")
 
     # set the test data
-    # actual_negative_sentiments_test = actual_negative_sentiments.iloc[-total_test_window:].dropna()
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
-    actual_negative_sentiments_test = actual_negative_sentiments.iloc[training_window_size:].dropna()
+    actual_negative_sentiments_test = actual_negative_sentiments.iloc[
+                                      training_window_size:].dropna() if rebuild else utils.get_next_rolling_window(
+        actual_negative_sentiments, sliding_window_size)
 
     scaled_test = standard_scaler_rnn.transform(actual_negative_sentiments_test[['sentiment']])
 
@@ -299,7 +299,8 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     return generate_forecasts_from_timeseries_generator(rnn_model,
                                                         sliding_window_size,
                                                         standard_scaler_rnn,
-                                                        actual_negative_sentiments_train, actual_negative_sentiments_test)
+                                                        actual_negative_sentiments_train,
+                                                        actual_negative_sentiments_test)
 
 
 #######################################
@@ -329,10 +330,10 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
 
-    predictions = predictions[:int(window_size)]
+    predictions = predictions.iloc[-int(window_size):]
 
-    df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:-int(window_size)]
-    logging.info(f"anomalies for...{df_total} {predictions}")
+    df_total = actual_negative_sentiments['sentiment'].iloc[:int(window_size)].iloc[-len(predictions):]
+    logging.info(f"anomalies for...{df_total} {predictions}...sizes: {len(df_total)} , {len(predictions)}")
     mae = median_absolute_error(df_total, predictions)
 
     model_rnn_results_full = \
@@ -364,19 +365,13 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
                               sliding_window_size,
                               stepwise_fit,
                               extvars,
-                              timeframe='hour'):
+                              timeframe='hour',
+                              data_freq=10):
     logging.info("Plot trend with anomalies...")
-
-    # Set start_date, end_date
-    end_date = utils.get_max_index(model_rnn_forecasts)
-    logging.info(f"end date is {end_date} {model_rnn_forecasts}")
-    start_date = end_date - timedelta(hours=get_time_lags(timeframe))
-    marker_date_start = utils.get_min_index(model_rnn_forecasts)
-    marker_date_end = utils.get_max_index(model_rnn_forecasts)
 
     standard_scalar = extvars['anomaly_negative_standard_scalar']
     inverse_scaled = pd.DataFrame(
-        standard_scalar.inverse_transform(model_rnn_results_full[['actualvalues', 'fittedvalues']]),
+        model_rnn_results_full[['actualvalues', 'fittedvalues']],
         columns=['actualvalues', 'fittedvalues'],
         index=model_rnn_results_full.index)
 
@@ -386,23 +381,36 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
     fitted_values_predicted = inverse_scaled['fittedvalues']
     fitted_values_forecasted = pd.DataFrame(standard_scalar.inverse_transform(pd.DataFrame(model_rnn_forecasts)),
                                             columns=['forecastvalues'],
-                                            index=model_rnn_forecasts.index)['forecastvalues']
+                                            index=model_rnn_forecasts.index)['forecastvalues'] if len(
+        model_rnn_forecasts) else None
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
     feature_store.save_artifact(mae_error, 'anomaly_mae_error')
 
+    # Set start_date, end_date
+    target = model_rnn_forecasts if len(model_rnn_forecasts) else fitted_values_actual
+    end_date = utils.get_current_datetime()
+    logging.info(f"end date is {end_date} {target}")
+    start_date = end_date - timedelta(hours=get_time_lags(timeframe))
+    marker_date_end = end_date if fitted_values_forecasted is not None else None
+    marker_date_start = max(end_date - timedelta(minutes=data_freq * len(target)), utils.get_max_index(target)) if fitted_values_forecasted is not None else None
+
     # TODO: Publish metrics to queue
-    prometheus_metrics_util.send_rnn_mae(mae_error)
+    exporter.prepare_histogram('anomaly_mae_error',
+                               'Anomaly MAE Error',
+                               {'scdf_run_tag': 'v1.0', 'scdf_run_step': 'plot_anomalies'}, mae_error)
 
     # Plot curves
     fig, ax = plt.subplots(figsize=(14, 5))
     ax.set_xlim([start_date, end_date])
     ax.plot(fitted_values_actual, label="Actual", color='blue')
     ax.plot(fitted_values_predicted, label=f"RNN Predictions", color='orange')
-    ax.plot(fitted_values_forecasted, label='Forecasted', color='green', linewidth=2)
+    ax.plot(fitted_values_forecasted, label='Forecasted', color='green',
+            linewidth=2) if fitted_values_forecasted is not None else True
     ax.plot(fitted_values_actual.loc[model_rnn_results_full['anomaly'] == 1],
             marker='o', linestyle='None', color='red', label="Anomalies")
-    ax.axvspan(marker_date_start, marker_date_end, alpha=0.5, color='green')
+    ax.axvspan(marker_date_start, marker_date_end, alpha=0.5,
+               color='green') if fitted_values_forecasted is not None else True
 
     # Include plots for test data if applicable
     test_data = total_negative_sentiments[['sentiment_normalized']].iloc[int(sliding_window_size):]
@@ -423,16 +431,20 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
 #######################################
 def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
                        rebuild=False,
-                       total_training_window=1440):
+                       total_training_window=1440,
+                       data_freq=10):
     logging.info("Generate RNN predictions...")
 
     # The dataset to forecast with
     if rebuild:
-        actual_negative_sentiments_train = actual_negative_sentiments.iloc[:-int(total_forecast_size)]
-        actual_negative_sentiments_test = actual_negative_sentiments.iloc[-int(total_forecast_size):]
+        num_shifts = total_training_window + total_forecast_size - len(actual_negative_sentiments)
+        actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(total_training_window)]
+        actual_negative_sentiments_test = actual_negative_sentiments.iloc[int(total_training_window):]
+        actual_negative_sentiments_test = utils.get_next_rolling_window(actual_negative_sentiments_test,
+                                                                        num_shifts) if num_shifts else actual_negative_sentiments_test
     else:
         actual_negative_sentiments_train = actual_negative_sentiments
-        actual_negative_sentiments_test = pd.DataFrame()
+        actual_negative_sentiments_test = utils.get_next_rolling_window(actual_negative_sentiments, sliding_window_size)
 
     # Load the model
     rnn_model = feature_store.load_artifact('anomaly_rnn_model')
@@ -442,13 +454,15 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
     return generate_forecasts_from_timeseries_generator(rnn_model,
                                                         sliding_window_size,
                                                         standard_scaler_rnn,
-                                                        actual_negative_sentiments_train, actual_negative_sentiments_test)
+                                                        actual_negative_sentiments_train,
+                                                        actual_negative_sentiments_test)
 
 
 #######################################
 # Generate RNN Forecasts from Timeseries Generator
 #######################################
-def generate_forecasts_from_timeseries_generator(rnn_model, sliding_window_size, standard_scaler, actual_negative_sentiments_train, actual_negative_sentiments_test):
+def generate_forecasts_from_timeseries_generator(rnn_model, sliding_window_size, standard_scaler,
+                                                 actual_negative_sentiments_train, actual_negative_sentiments_test):
     scaled_train = standard_scaler.transform(actual_negative_sentiments_train[['sentiment']])
 
     scaled_test = standard_scaler.transform(actual_negative_sentiments_test[['sentiment']])
@@ -468,10 +482,13 @@ def generate_forecasts_from_timeseries_generator(rnn_model, sliding_window_size,
 
     predictions = standard_scaler.inverse_transform(np.reshape(scaled_predictions, (num_predictions, 1)))
 
-    rnn_predictions = pd.concat([get_prior_forecasts(), pd.Series(predictions.reshape(-1))])[
-                      -len(actual_negative_sentiments_test):]
+    rnn_predictions = pd.concat([get_prior_forecasts(),
+                                 pd.Series(predictions.reshape(-1),
+                                           index=actual_negative_sentiments_test.index)]).iloc[-num_predictions:]
 
-    rnn_predictions = rnn_predictions.reindex(actual_negative_sentiments_test.inde)
+    rnn_predictions = rnn_predictions.reindex(actual_negative_sentiments_test.index)
+
+    print(f"rnn predictions : {rnn_predictions}")
 
     # Store predictions
     feature_store.save_artifact(rnn_predictions, 'anomaly_rnn_forecasts')

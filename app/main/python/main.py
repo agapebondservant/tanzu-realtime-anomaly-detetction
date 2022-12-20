@@ -125,7 +125,7 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
-    return True  # feature_store.load_artifact('is_trained') is None
+    return feature_store.load_artifact('is_trained') is None
 
 
 def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, rebuild=False):
@@ -133,7 +133,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
 
     # Input features
     data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
-    logging.info(f"Params: data_freq={data_freq}, sliding_winow_size={sliding_window_size}, training_percent={training_percent}")
+    logging.info(f"Params: data_freq={data_freq}, sliding_window_size={sliding_window_size}, training_percent={training_percent}")
 
     # Other required variables
 
@@ -150,12 +150,13 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
         buffers = settings.anomaly_detection.prepare_data(df, sample_frequency, extvars)
 
         # Determine the training window
+        num_future_predictions = 2
         if rebuild:
             total_training_window = int(training_percent * len(buffers['actual_negative_sentiments']))
-            total_forecast_window = len(buffers['actual_negative_sentiments']) - total_training_window
+            total_forecast_window = len(buffers['actual_negative_sentiments']) - total_training_window + num_future_predictions
         else:
             total_training_window = len(buffers['actual_negative_sentiments'])
-            total_forecast_window = 2
+            total_forecast_window = num_future_predictions
 
         # Save EDA artifacts
         settings.anomaly_detection.generate_and_save_eda_metrics(df)
@@ -174,7 +175,9 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
 
         # Perform training
         model_results = settings.anomaly_detection.train_model(total_training_window, stepwise_fit,
-                                                               buffers['actual_negative_sentiments'])
+                                                               buffers['actual_negative_sentiments'],
+                                                               rebuild=rebuild,
+                                                               data_freq=data_freq)
 
         # Perform forecasting
         model_forecasts = settings.anomaly_detection.generate_forecasts(sliding_window_size,
@@ -182,7 +185,8 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
                                                                         stepwise_fit,
                                                                         buffers[
                                                                             'actual_negative_sentiments'],
-                                                                        rebuild)
+                                                                        rebuild,
+                                                                        total_training_window=total_training_window)
 
         # Detect anomalies
         model_results_full = settings.anomaly_detection.detect_anomalies(model_results,  # fittedvalues,
@@ -196,7 +200,8 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
                                                                    total_training_window,
                                                                    stepwise_fit,
                                                                    extvars,
-                                                                   reporting_timeframe)
+                                                                   reporting_timeframe,
+                                                                   data_freq=data_freq)
 
         # TEMPORARY: Set a flag indicating that training was done
         feature_store.save_artifact(True, 'is_trained')
@@ -230,7 +235,7 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         # Prepare Data
         buffers = settings.anomaly_detection.prepare_data(data, sample_frequency, extvars)
 
-        # Retrieve stepwise_fit (used by ARIMA model)
+        # Retrieve stepwise_fit (used by ARIMA model only)
         stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
 
         # Retrieve training results
@@ -247,7 +252,7 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
 
         # Detect anomalies
         model_results_full = settings.anomaly_detection.detect_anomalies(
-            model_results.append(model_predictions),
+            model_predictions,
             total_training_window,
             buffers['actual_negative_sentiments'])
 

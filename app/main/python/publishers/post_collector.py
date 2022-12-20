@@ -3,6 +3,7 @@ import logging
 import json
 from rabbitmq.connection import publisher
 from app.main.python.utils import utils
+from app.main.python import feature_store
 
 
 class PostCollector(publisher.Publisher):

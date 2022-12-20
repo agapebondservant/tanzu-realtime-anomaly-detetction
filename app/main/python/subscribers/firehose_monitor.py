@@ -46,8 +46,6 @@ class FirehoseMonitor(subscriber.Subscriber):
             # update the feature store
             feature_store.save_artifact(data, '_data')
 
-            logging.debug(f"new data looks like this: {data}")
-
             # Reset new_data
             self.new_data = None
 

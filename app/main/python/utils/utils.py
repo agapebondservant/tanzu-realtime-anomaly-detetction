@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 import pytz
+import re
 import ray
 import os
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
@@ -118,6 +119,16 @@ def store_global_offset(dt):
 sequence_id = 569587140490866700
 
 
-def next_sequence_id(sequence_num=sequence_id):
-    sequence_num += 1
-    return sequence_num
+def next_sequence_id():
+    global sequence_id
+    sequence_id += 1
+    return sequence_id
+
+
+def get_next_rolling_window(current_dataset, num_shifts):
+    if not len(current_dataset):
+        logging.error("Error: Cannot get the next rolling window for an empty dataset")
+    else:
+        new_dataset = pd.concat([current_dataset[num_shifts % len(current_dataset):], current_dataset[:num_shifts % len(current_dataset)]])
+        new_dataset.index = current_dataset.index + (current_dataset.index.freq * num_shifts)
+        return new_dataset

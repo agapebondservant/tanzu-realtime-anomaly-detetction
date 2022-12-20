@@ -26,8 +26,12 @@ pyyaml
 prometheus-client
 protobuf # protobuf==3.20.0 # protobuf==3.19.5
 fastapi
-modin[ray]
+#modin[ray]
 uvicorn[standard]
 gunicorn
 boto3
 tensorflow
+rsocket
+asyncio
+# nest_asyncio
+python-snappy
