@@ -8,7 +8,6 @@ import time
 from app.main.python import main
 
 # Initializations
-main.initialize()
 
 st.write("""
 <style>

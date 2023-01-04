@@ -11,6 +11,7 @@ RUN apt-get update \
     && apt-get install g++ -y \
     && apt-get install gcc -y \
     && apt-get install -y default-libmysqlclient-dev \
+    && apt-get install -y git \
     && apt-get clean && \
     pip3 install -r requirements.txt && \
     mkdir -p /root/.streamlit && \

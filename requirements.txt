@@ -35,3 +35,4 @@ rsocket
 asyncio
 # nest_asyncio
 python-snappy
+mlflow==2.0.1

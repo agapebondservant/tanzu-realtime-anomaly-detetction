@@ -1,0 +1,33 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: scdf-mlmodel-prometheus
+  # If labels are defined in spec.podMonitorSelector.matchLabels of your deployed Prometheus object, make sure to include them here.
+  #labels:
+  #  release: prometheus
+spec:
+  podMetricsEndpoints:
+    - scheme: http
+      path: /actuator/prometheus
+      # params:
+      #  family:
+      #    - queue_coarse_metrics
+      #    - queue_metrics
+      interval: 15s
+      scrapeTimeout: 14s
+    #- scheme: https
+    #  path: /actuator/prometheus
+    #  #params:
+      #  family:
+      #    - queue_coarse_metrics
+      #    - queue_metrics
+    #  interval: 15s
+    #  scrapeTimeout: 14s
+    #  tlsConfig:
+    #    insecureSkipVerify: true
+  selector:
+    matchLabels:
+      role: spring-app
+  namespaceSelector:
+    any: true

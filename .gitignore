@@ -6,3 +6,17 @@ artifacts/*
 resources/kubernetes/artifacts
 app/main/python/__pycache__/*.*
 resources/scdf-pro/scdf-pro-http-proxy.yaml
+app/artifacts/
+data/
+jupyter/.ipynb_checkpoints/
+jupyter/00-RNN-SineWave-Example.ipynb
+jupyter/01-RNN-Time-Series-Example.ipynb
+jupyter/02-RNN-Exercise .ipynb
+jupyter/03-RNN-Exercise-Solutions.ipynb
+jupyter/04-BONUS-Multivariate-RNN.ipynb
+jupyter/RSCCASN.csv
+jupyter/airline_passengers.csv
+jupyter/RNN General.ipynb
+jupyter/ewma.png
+jupyter/multivariate.h5
+jupyter/practise.ipynb

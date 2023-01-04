@@ -3,8 +3,10 @@
 ########################
 import ray
 import os
+
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
-                      'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
+                      'env_vars': dict(os.environ),
+                      'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
 import pandas as pd
 import numpy as np
 import logging
@@ -37,7 +39,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
 import sklearn.model_selection as model_selection
-from app.main.python import feature_store, data_source
+from app.main.python import feature_store, feature_store_remote, data_source
 
 
 ########################
@@ -46,6 +48,7 @@ from app.main.python import feature_store, data_source
 def ingest_data():
     logging.info('Ingest data...')
     return data_source.get_data()
+
 
 ########################################################################################################################
 # SENTIMENT ANALYSIS
@@ -124,10 +127,10 @@ def generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
     test_roc_auc = roc_auc_score(y_test, model.predict_proba(x_test), multi_class='ovo')
     # TODO: Use MLFlow
     logging.info("Saving metrics...")
-    feature_store.save_artifact({'sentiment_train_acc': train_acc,
-                                 'sentiment_test_acc': test_acc,
-                                 'sentiment_train_roc_auc': train_roc_auc,
-                                 'sentiment_test_roc_auc': test_roc_auc}, 'sentiment_analysis_metrics')
+    feature_store_remote.save_artifact({'sentiment_train_acc': train_acc,
+                                        'sentiment_test_acc': test_acc,
+                                        'sentiment_train_roc_auc': train_roc_auc,
+                                        'sentiment_test_roc_auc': test_roc_auc}, 'sentiment_analysis_metrics')
 
 
 ########################
@@ -135,7 +138,7 @@ def generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
 ########################
 def save_model(model):
     logging.info("Saving model...")
-    feature_store.save_artifact(model, 'sentiment_analysis_model')
+    feature_store_remote.save_model(model, 'sentiment_analysis_model')
 
 
 ########################
@@ -143,7 +146,7 @@ def save_model(model):
 ########################
 def save_vectorizer(vectorizer):
     logging.info("Saving vectorizer...")
-    feature_store.save_artifact(vectorizer, 'sentiment_analysis_vectorizer')
+    feature_store_remote.save_artifact(vectorizer, 'sentiment_analysis_vectorizer')
 
 
 ########################
@@ -152,8 +155,8 @@ def save_vectorizer(vectorizer):
 def predict(text):
     logging.info("Predicting sentiment...")
     sample = pd.Series(text)
-    vectorizer = feature_store.load_artifact('sentiment_analysis_vectorizer')
-    model = feature_store.load_artifact('sentiment_analysis_model')
+    vectorizer = feature_store_remote.load_artifact('sentiment_analysis_vectorizer')
+    model = feature_store_remote.load_model('sentiment_analysis_model')
     transformed_sample = vectorizer.transform(sample)
     classes = ['negative', 'positive', 'neutral']
     return classes[model.predict(transformed_sample)[0]]

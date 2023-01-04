@@ -4,6 +4,7 @@ import pytz
 import re
 import ray
 import os
+import mlflow
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
                       'env_vars': dict(os.environ), 'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
 import pandas as pd
@@ -30,6 +31,24 @@ def get_cmd_arg(name):
         return d[name][0]
     else:
         logging.info('Unknown command line arg requested: {}'.format(name))
+
+################################################
+# Environment Variable Utils
+#
+################################################
+
+
+def get_env_var(name):
+    if name in os.environ:
+        value = os.environ[name]
+        return int(value) if re.match("\d+$", value) else value
+    else:
+        logging.info('Unknown environment variable requested: {}'.format(name))
+
+
+def set_env_var(name, value):
+    if value:
+        os.environ[name] = value
 
 ################################################
 # Dataframe Utils
@@ -132,3 +151,35 @@ def get_next_rolling_window(current_dataset, num_shifts):
         new_dataset = pd.concat([current_dataset[num_shifts % len(current_dataset):], current_dataset[:num_shifts % len(current_dataset)]])
         new_dataset.index = current_dataset.index + (current_dataset.index.freq * num_shifts)
         return new_dataset
+
+
+################################################
+# MLFlow Utils
+#
+################################################
+def get_current_run_id():
+    last_active_run = mlflow.last_active_run()
+    return last_active_run.info.run_id if last_active_run else None
+
+
+def get_parent_run_id():
+    last_active_run = mlflow.last_active_run()
+    logging.debug(f"Current run id is...{get_current_run_id()}\nParent run id is...{last_active_run.data.tags.get('mlflow.parentRunId')}")
+    return (last_active_run.data.tags.get("mlflow.parentRunId") or get_current_run_id()) if last_active_run else None
+
+
+def prepare_mlflow_experiment():
+    current_experiment_name = get_env_var('CURRENT_EXPERIMENT')
+    current_experiment = mlflow.get_experiment_by_name(current_experiment_name)
+    current_experiment_id = current_experiment.experiment_id if current_experiment and current_experiment.lifecycle_stage == 'active' else mlflow.create_experiment(
+        current_experiment_name)
+    mlflow_tags = {'step': get_env_var('CURRENT_APP') or '', 'run_tag': get_env_var('RUN_TAG') or ''}
+    set_env_var("MLFLOW_CURRENT_TAGS", json.dumps(mlflow_tags))
+    set_env_var("MLFLOW_EXPERIMENT_ID", current_experiment_id)
+    logging.info(
+        f"Launching experiment...experiment name={current_experiment_name}, experiment id={current_experiment_id}, tags={mlflow_tags}")
+
+
+def prepare_mlflow_run(active_run):
+    mlflow.set_tags(json.loads(get_env_var("MLFLOW_CURRENT_TAGS")))
+    set_env_var('MLFLOW_RUN_ID', active_run.info.run_id)

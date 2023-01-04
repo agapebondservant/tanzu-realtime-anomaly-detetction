@@ -59,7 +59,8 @@ def show_anomalies(timeframe):
 def train_sentiment_model():
     try:
         logging.info('Training sentiment analysis model...')
-        main.sentiment_analysis_training_pipeline()
+        if main.sentiment_analysis_needs_training():
+            main.sentiment_analysis_training_pipeline()
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

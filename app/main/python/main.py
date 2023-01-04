@@ -14,6 +14,9 @@ from app.main.python import config, csv_data
 from app.main.python.utils import utils
 from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
 from app.main.python.settings import settings
+import mlflow
+from datetime import datetime
+import os
 
 ########################
 # Set-up
@@ -42,31 +45,37 @@ def sentiment_analysis_training_pipeline():
     logging.info("Starting Sentiment Analysis Training Pipeline.......................")
 
     try:
-        # Ingest Data
-        df = sentiment_analysis.ingest_data()
 
-        # Prepare Data
-        df = sentiment_analysis.prepare_data(df)
+        with mlflow.start_run(run_id=utils.get_current_run_id(), run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
+                              nested=True):
 
-        # Perform Test-Train Split
-        df_train, df_test = sentiment_analysis.train_test_split(df)
+            # Ingest Data
+            df = sentiment_analysis.ingest_data()
 
-        # Perform tf-idf vectorization
-        x_train, x_test, y_train, y_test, vectorizer = sentiment_analysis.vectorization(df_train, df_test)
+            # Prepare Data
+            df = sentiment_analysis.prepare_data(df)
 
-        # Generate model
-        model = sentiment_analysis.train(x_train, x_test, y_train, y_test)
+            # Perform Test-Train Split
+            df_train, df_test = sentiment_analysis.train_test_split(df)
 
-        # Store metrics
-        sentiment_analysis.generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
+            # Perform tf-idf vectorization
+            x_train, x_test, y_train, y_test, vectorizer = sentiment_analysis.vectorization(df_train, df_test)
 
-        # Save model
-        sentiment_analysis.save_model(model)
+            # Generate model
+            model = sentiment_analysis.train(x_train, x_test, y_train, y_test)
 
-        # Save vectorizer
-        sentiment_analysis.save_vectorizer(vectorizer)
+            # Store metrics
+            sentiment_analysis.generate_and_save_metrics(x_train, x_test, y_train, y_test, model)
 
-        logging.info("Sentiment Analysis Pipeline execution complete.")
+            # Save model
+            sentiment_analysis.save_model(model)
+
+            # Save vectorizer
+            sentiment_analysis.save_vectorizer(vectorizer)
+
+            feature_store.save_artifact(True, 'sentiment_analysis_is_trained')
+
+            logging.info("Sentiment Analysis Pipeline execution complete.")
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
@@ -125,92 +134,105 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
-    return feature_store.load_artifact('is_trained') is None
+    return feature_store.load_artifact('anomaly_detection_is_trained') is None
+
+
+# TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
+def sentiment_analysis_needs_training():
+    logging.info(f"Needs training ... {feature_store.load_artifact('sentiment_analysis_is_trained') is None}")
+    return feature_store.load_artifact('sentiment_analysis_is_trained') is None
 
 
 def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, rebuild=False):
-    logging.info("Starting Anomaly Detection Training Pipeline.......................")
+    with mlflow.start_run(run_id=utils.get_current_run_id(), run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
+                          nested=True):
+        logging.info("Starting Anomaly Detection Training Pipeline.......................")
 
-    # Input features
-    data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
-    logging.info(f"Params: data_freq={data_freq}, sliding_window_size={sliding_window_size}, training_percent={training_percent}")
+        # Input features
+        data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
+        logging.info(
+            f"Params: data_freq={data_freq}, sliding_window_size={sliding_window_size}, training_percent={training_percent}")
 
-    # Other required variables
+        # Other required variables
 
-    extvars = settings.anomaly_detection.get_utility_vars()
+        extvars = settings.anomaly_detection.get_utility_vars()
 
-    try:
-        # Ingest Data
-        df = settings.anomaly_detection.ingest_data()
+        # Set up metrics
 
-        # Store input values
-        settings.anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
+        try:
+            # Ingest Data
+            df = settings.anomaly_detection.ingest_data()
 
-        # Prepare data by performing feature extraction
-        buffers = settings.anomaly_detection.prepare_data(df, sample_frequency, extvars)
+            # Store input values
+            settings.anomaly_detection.initialize_input_features(data_freq, sliding_window_size, arima_order)
 
-        # Determine the training window
-        num_future_predictions = 2
-        if rebuild:
-            total_training_window = int(training_percent * len(buffers['actual_negative_sentiments']))
-            total_forecast_window = len(buffers['actual_negative_sentiments']) - total_training_window + num_future_predictions
-        else:
-            total_training_window = len(buffers['actual_negative_sentiments'])
-            total_forecast_window = num_future_predictions
+            # Prepare data by performing feature extraction
+            buffers = settings.anomaly_detection.prepare_data(df, sample_frequency, extvars)
 
-        # Save EDA artifacts
-        settings.anomaly_detection.generate_and_save_eda_metrics(df)
+            # Determine the training window
+            num_future_predictions = 2
+            if rebuild:
+                total_training_window = int(training_percent * len(buffers['actual_negative_sentiments']))
+                total_forecast_window = len(
+                    buffers['actual_negative_sentiments']) - total_training_window + num_future_predictions
+            else:
+                total_training_window = len(buffers['actual_negative_sentiments'])
+                total_forecast_window = num_future_predictions
 
-        # Perform ADF test
-        adf_results = settings.anomaly_detection.generate_and_save_adf_results(buffers['actual_negative_sentiments'])
-        settings.anomaly_detection.generate_and_save_stationarity_results(buffers['actual_negative_sentiments'],
-                                                                          estimated_seasonality_hours)
+            # Save EDA artifacts
+            settings.anomaly_detection.generate_and_save_eda_metrics(df)
 
-        # Check for stationarity
-        logging.info(f'Stationarity : {settings.anomaly_detection.check_stationarity(adf_results)}')
-        logging.info(f'P-value : {adf_results[1]}')
+            # Perform ADF test
+            adf_results = settings.anomaly_detection.generate_and_save_adf_results(
+                buffers['actual_negative_sentiments'])
+            settings.anomaly_detection.generate_and_save_stationarity_results(buffers['actual_negative_sentiments'],
+                                                                              estimated_seasonality_hours)
 
-        # Build a predictive model (or reuse existing one if this is not rebuild mode)
-        stepwise_fit = settings.anomaly_detection.build_model(buffers['actual_negative_sentiments'], rebuild)
+            # Check for stationarity
+            logging.info(f'Stationarity : {settings.anomaly_detection.check_stationarity(adf_results)}')
+            logging.info(f'P-value : {adf_results[1]}')
 
-        # Perform training
-        model_results = settings.anomaly_detection.train_model(total_training_window, stepwise_fit,
-                                                               buffers['actual_negative_sentiments'],
-                                                               rebuild=rebuild,
-                                                               data_freq=data_freq)
+            # Build a predictive model (or reuse existing one if this is not rebuild mode)
+            stepwise_fit = settings.anomaly_detection.build_model(buffers['actual_negative_sentiments'], rebuild)
 
-        # Perform forecasting
-        model_forecasts = settings.anomaly_detection.generate_forecasts(sliding_window_size,
-                                                                        total_forecast_window,
-                                                                        stepwise_fit,
-                                                                        buffers[
-                                                                            'actual_negative_sentiments'],
-                                                                        rebuild,
-                                                                        total_training_window=total_training_window)
-
-        # Detect anomalies
-        model_results_full = settings.anomaly_detection.detect_anomalies(model_results,  # fittedvalues,
-                                                                         total_training_window,
-                                                                         buffers['actual_negative_sentiments'])
-
-        # Plot anomalies
-        fig = settings.anomaly_detection.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
-                                                                   model_results_full,
-                                                                   model_forecasts,
-                                                                   total_training_window,
-                                                                   stepwise_fit,
-                                                                   extvars,
-                                                                   reporting_timeframe,
+            # Perform training
+            model_results = settings.anomaly_detection.train_model(total_training_window, stepwise_fit,
+                                                                   buffers['actual_negative_sentiments'],
+                                                                   rebuild=rebuild,
                                                                    data_freq=data_freq)
 
-        # TEMPORARY: Set a flag indicating that training was done
-        feature_store.save_artifact(True, 'is_trained')
+            # Perform forecasting
+            model_forecasts = settings.anomaly_detection.generate_forecasts(sliding_window_size,
+                                                                            total_forecast_window,
+                                                                            stepwise_fit,
+                                                                            buffers[
+                                                                                'actual_negative_sentiments'],
+                                                                            rebuild,
+                                                                            total_training_window=total_training_window)
 
-        return fig
+            # Detect anomalies
+            model_results_full = settings.anomaly_detection.detect_anomalies(model_results,  # fittedvalues,
+                                                                             total_training_window,
+                                                                             buffers['actual_negative_sentiments'])
 
-    except Exception as e:
-        logging.error('Could not complete execution - error occurred: ', exc_info=True)
-        traceback.print_exc()
+            # Plot anomalies
+            fig = settings.anomaly_detection.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
+                                                                       model_results_full,
+                                                                       model_forecasts,
+                                                                       total_training_window,
+                                                                       stepwise_fit,
+                                                                       extvars,
+                                                                       reporting_timeframe,
+                                                                       data_freq=data_freq)
+
+            # TEMPORARY: Set a flag indicating that training was done
+            feature_store.save_artifact(True, 'anomaly_detection_is_trained')
+
+            return fig
+
+        except Exception as e:
+            logging.error('Could not complete execution - error occurred: ', exc_info=True)
+            traceback.print_exc()
 
 
 def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
@@ -292,19 +314,30 @@ def anomaly_detection_stats(sample_frequency):
 # Initialize MQ connections
 #############################
 def initialize():
-    if config.firehose_monitor is None:
-        config.firehose_monitor = FirehoseMonitor(host=config.host)
-        config.firehose_monitor.start()
+    logging.info(f"in initialize...{utils.get_cmd_arg('model_name')} {config.firehose} {config.dashboard_monitor}")
+    if config.firehose_monitor is None or config.firehose is None or config.dashboard_monitor is None:
+        mlflow.end_run()
+        run_name = datetime.now().strftime("%Y-%m-%d-%H%M")
+        with mlflow.start_run(run_name=run_name) as active_run:
+            os.environ['MLFLOW_RUN_ID'] = active_run.info.run_id
+            os.environ['MLFLOW_RUN_NAME'] = run_name
 
-    if config.firehose is None:
-        config.firehose = Firehose(host=config.host, data=csv_data.get_data())
-        config.firehose.start()
+            # if config.firehose_monitor is None:
+            config.firehose_monitor = FirehoseMonitor(host=config.host)
+            config.firehose_monitor.start()
 
-    if config.dashboard_monitor is None:
-        config.dashboard_monitor = DashboardMonitor(host=config.host, queue=config.dashboard_queue)
-        config.dashboard_monitor.start()
+            # if config.firehose is None:
+            config.firehose = Firehose(host=config.host, data=csv_data.get_data())
+            config.firehose.start()
+
+            # if config.dashboard_monitor is None:
+            config.dashboard_monitor = DashboardMonitor(host=config.host, queue=config.dashboard_queue)
+            config.dashboard_monitor.start()
 
     # if config.dashboard_notifier_thread is None:
     #    config.dashboard_notifier_thread = MonitorThread(interval=config.dashboard_refresh_interval,
     #                                                     monitor=notifier.Notifier(host=config.host, data=config.data_published_msg))
     #    config.dashboard_notifier_thread.start()
+
+
+initialize()
