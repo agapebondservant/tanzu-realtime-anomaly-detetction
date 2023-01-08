@@ -21,34 +21,40 @@ cache = {}
 ########################
 # Save to cache
 ########################
-def save_artifact(artifact, artifact_name):
+def save_artifact(artifact, artifact_name, remote=True):
     try:
         save_to_cache(artifact, artifact_name)
-        save_to_backend(artifact, artifact_name)
+        save_to_backend(artifact, artifact_name, remote=remote)
     except Exception as e:
-        logging.info(f'Could not complete execution for save_artifact - {artifact_name} - error occurred: ', exc_info=True)
+        logging.info(f'Could not complete execution for save_artifact - {artifact_name} - error occurred: ',
+                     exc_info=True)
 
 
 ########################
 # Save to cache
 ########################
-def load_artifact(artifact_name, reload=True):
+def load_artifact(artifact_name, remote=True):
     try:
         artifact = load_from_cache(artifact_name)
-        if artifact is None or reload:
-            artifact = load_from_backend(artifact_name)
+        if artifact is None or not _get_sync_status(artifact_name):
+            artifact = load_from_backend(artifact_name, remote=remote)
         return artifact
     except Exception as e:
-        logging.info(f'Could not complete execution for load_artifact - {artifact_name} - error occurred: ', exc_info=True)
+        logging.info(f'Could not complete execution for load_artifact - {artifact_name} - error occurred: ',
+                     exc_info=True)
 
 
 ########################
 # Save artifact
 ########################
-def save_to_backend(artifact, artifact_name):
+def save_to_backend(artifact, artifact_name, remote=True):
     try:
         logging.info(f"saving {artifact_name}...{utils.get_parent_run_id()}")
-        controller.log_artifact.remote(utils.get_parent_run_id(), artifact, f"{artifact_name}")
+        if remote:
+            controller.log_artifact.remote(utils.get_parent_run_id(), artifact, f"{artifact_name}")
+        else:
+            utils.mlflow_log_artifact(utils.get_parent_run_id(), artifact, f"{artifact_name}")
+        utils.synchronize(target=_set_out_of_sync, args=(artifact_name,))
     except Exception as e:
         logging.info('Could not complete execution - error occurred: ', exc_info=True)
 
@@ -56,15 +62,21 @@ def save_to_backend(artifact, artifact_name):
 ########################
 # Load artifact
 ########################
-def load_from_backend(artifact_name):
+def load_from_backend(artifact_name, remote=True):
     artifact = None
     try:
         run_id = utils.get_parent_run_id()
         if run_id:
-            result = controller.load_artifact.remote(run_id,
-                                                     artifact_uri=f"runs:/{run_id}/{artifact_name}",
-                                                     dst_path="app/artifacts")
-            artifact = ray.get(result)
+            if remote:
+                result = controller.load_artifact.remote(run_id,
+                                                         artifact_uri=f"runs:/{run_id}/{artifact_name}",
+                                                         dst_path="app/artifacts")
+                artifact = ray.get(result)
+            else:
+                artifact = utils.mlflow_load_artifact(run_id,
+                                                      artifact_uri=f"runs:/{run_id}/{artifact_name}",
+                                                      dst_path="app/artifacts")
+            utils.synchronize(target=_set_in_sync, args=(artifact_name,))
     except Exception as e:
         logging.info('Could not complete execution - error occurred: ', exc_info=True)
     finally:
@@ -117,8 +129,8 @@ def save_offset(offset, offset_name):
 ########################
 # Load offset
 ########################
-def load_offset(offset_name):
-    return load_artifact(f'{offset_name}_offset')
+def load_offset(offset_name, remote=True):
+    return load_artifact(f'{offset_name}_offset', remote=remote)
 
 
 ########################
@@ -144,3 +156,27 @@ def load_from_cache(artifact_name):
 ########################
 def generate_autolog_metrics(flavor):
     controller.generate_autolog_metrics.remote(flavor)
+
+
+########################
+# Set in_sync flag=True for this artifact in the cache
+# (used to implement dirty read flag for cache)
+########################
+def _set_in_sync(artifact_name):
+    cache[f"{artifact_name}_in_sync_flag"] = True
+
+
+########################
+# Set out_of_sync flag=False for this artifact in the cache
+# (used to implement dirty read flag for cache)
+########################
+def _set_out_of_sync(artifact_name):
+    cache[f"{artifact_name}_in_sync_flag"] = False
+
+
+########################
+# Set in-sync status for this artifact in the cache
+# (used to implement dirty read flag for cache)
+########################
+def _get_sync_status(artifact_name):
+    cache.get(f"{artifact_name}_in_sync_flag")

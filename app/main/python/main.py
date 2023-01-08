@@ -5,7 +5,7 @@ import streamlit as st
 import logging
 import warnings
 import traceback
-from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
+from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store, feature_store_remote
 from sklearn.preprocessing import StandardScaler
 from app.main.python.publishers.firehose import Firehose
 from app.main.python.publishers.post_collector import PostCollector
@@ -258,7 +258,7 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         buffers = settings.anomaly_detection.prepare_data(data, sample_frequency, extvars)
 
         # Retrieve stepwise_fit (used by ARIMA model only)
-        stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
+        stepwise_fit = feature_store_remote.load_artifact('anomaly_auto_arima')
 
         # Retrieve training results
         model_results = settings.anomaly_detection.get_prior_forecasts()

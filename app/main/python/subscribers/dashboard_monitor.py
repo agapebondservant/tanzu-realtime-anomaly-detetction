@@ -22,3 +22,5 @@ class DashboardMonitor(subscriber.Subscriber):
                                                offset=offset, prefetch_count=prefetch_count,
                                                conn_retry_count=conn_retry_count,
                                                receive_callback=DashboardMonitor.receive_messages)
+
+        self.buffer_length = 0

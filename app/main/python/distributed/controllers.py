@@ -14,7 +14,7 @@ from datetime import datetime
 logger = logging.getLogger('scaledtasks')
 
 
-@ray.remote
+@ray.remote(num_cpus=2, memory=40 * 1024 * 1024)
 class ScaledTaskController:
 
     def log_model(self, parent_run_id, model, flavor, **kwargs):
@@ -26,13 +26,16 @@ class ScaledTaskController:
         logger.info("Logging was successful.")
 
     def load_model(self, parent_run_id, flavor, model_uri=None, **kwargs):
-        logger.info(f"In load_model...run id = {parent_run_id}")
-        mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
+        try:
+            logger.info(f"In load_model...run id = {parent_run_id}")
+            mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
-        model = getattr(mlflow, flavor).load_model(model_uri)
-        logger.info("Model loaded.")
+            model = getattr(mlflow, flavor).load_model(model_uri)
+            logger.info("Model loaded.")
 
-        return model
+            return model
+        except Exception as e:
+            logging.info(f'Could not complete execution for load_model - {model_uri}- error occurred: ', exc_info=True)
 
     def log_dict(self, parent_run_id, dataframe=None, dict_name=None):
         logger.info(f"In log_dict...run id = {parent_run_id}")
@@ -44,7 +47,7 @@ class ScaledTaskController:
         logger.info("Logging was successful.")
 
     def log_artifact(self, parent_run_id, artifact, local_path, **kwargs):
-        logger.info(f"In log_artifact...run id = {parent_run_id}, local_path")
+        """logger.info(f"In log_artifact...run id = {parent_run_id}, local_path")
         mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
         artifact_handle = open(local_path, "wb")
@@ -52,18 +55,23 @@ class ScaledTaskController:
         artifact_handle.close()
 
         MlflowClient().log_artifact(parent_run_id, local_path, **kwargs)
-        logger.info("Logging was successful.")
+        logger.info("Logging was successful.")"""
+        utils.mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs)
 
     def load_artifact(self, parent_run_id, **kwargs):
-        logger.info(f"In load_artifact...run id = {parent_run_id}, {kwargs}")
-        mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
+        """try:
+            logger.info(f"In load_artifact...run id = {parent_run_id}, {kwargs}")
+            mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
-        download_path = mlflow.artifacts.download_artifacts(**kwargs)
-        logger.info(f"Artifact downloaded to...{download_path}")
-        artifact_handle = open(f"{download_path}", "rb")
-        artifact = joblib.load(artifact_handle)
+            download_path = mlflow.artifacts.download_artifacts(**kwargs)
+            logger.info(f"Artifact downloaded to...{download_path}")
+            artifact_handle = open(f"{download_path}", "rb")
+            artifact = joblib.load(artifact_handle)
 
-        return artifact
+            return artifact
+        except Exception as e:
+            logging.info(f'Could not complete execution for load_artifact - {kwargs}- error occurred: ', exc_info=True)"""
+        return utils.mlflow_load_artifact(parent_run_id, **kwargs)
 
     def log_text(self, parent_run_id, **kwargs):
         logger.info(f"In log_text...run id = {parent_run_id}, {kwargs}")
@@ -74,13 +82,16 @@ class ScaledTaskController:
         logger.info("Logging was successful.")
 
     def load_text(self, parent_run_id, **kwargs):
-        logger.info(f"In load_text...{kwargs}")
-        mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
+        try:
+            logger.info(f"In load_text...{kwargs}")
+            mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
-        text = mlflow.artifacts.load_text(**kwargs)
-        logger.info(f"Text...{text}")
+            text = mlflow.artifacts.load_text(**kwargs)
+            logger.info(f"Text...{text}")
 
-        return text
+            return text
+        except Exception as e:
+            logging.info(f'Could not complete execution for load_text - {kwargs}- error occurred: ', exc_info=True)
 
     def get_dataframe_from_dict(self, parent_run_id=None, artifact_name=None):
         if parent_run_id and artifact_name:

@@ -43,7 +43,7 @@ import re
 import pytz
 import math
 import json
-from app.main.python import feature_store, data_source, config
+from app.main.python import feature_store, feature_store_remote, data_source, config
 from app.main.python.utils import utils
 from app.main.python.metrics import prometheus_metrics_util
 
@@ -194,7 +194,7 @@ def get_filtered_data_sets(df, sample_frequency, extvars):
 def generate_and_save_adf_results(actual_negative_sentiments):
     logging.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
-    feature_store.save_artifact(adfuller_results, 'adf_results')
+    feature_store_remote.save_artifact(adfuller_results, 'adf_results', remote=False)
     return adfuller_results
 
 
