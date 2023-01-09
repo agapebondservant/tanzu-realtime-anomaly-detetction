@@ -371,6 +371,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         predictions = predictions.append(pd.Series(pred))
 
     # Save forecasts
+    logging.info(f"Number of anomaly_arima_forecasts to save...{len(predictions)}")
     feature_store_remote.save_artifact(predictions, 'anomaly_arima_forecasts')
 
     # Return predictions
@@ -383,6 +384,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 
 def get_prior_forecasts():
     forecasts = feature_store_remote.load_artifact('anomaly_arima_forecasts')
+    logging.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
     if forecasts is None:
         forecasts = pd.Series([])
     return forecasts
@@ -406,6 +408,7 @@ def get_predictions_before_or_at(dt):
 
 def get_forecasts_after(dt):
     forecasts = feature_store_remote.load_artifact('anomaly_arima_forecasts')
+    logging.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index > dt]

@@ -184,11 +184,10 @@ def get_current_run_id():
     return last_active_run.info.run_id if last_active_run else None
 
 
-def get_parent_run_id():
-    last_active_run = mlflow.last_active_run()
-    logging.debug(
-        f"Current run id is...{get_current_run_id()}\nParent run id is...{last_active_run.data.tags.get('mlflow.parentRunId')}")
-    return (last_active_run.data.tags.get("mlflow.parentRunId") or get_current_run_id()) if last_active_run else None
+def get_parent_run_id(experiment_ids=[0]):
+    runs = mlflow.search_runs(experiment_ids=experiment_ids, filter_string="tags.runlevel='root'", max_results=1, output_format='list')
+    logging.debug(f"Parent run is...{runs}")
+    return runs[0].info.run_id if len(runs) else None
 
 
 def prepare_mlflow_experiment():
@@ -204,8 +203,9 @@ def prepare_mlflow_experiment():
 
 
 def prepare_mlflow_run(active_run):
-    mlflow.set_tags(json.loads(get_env_var("MLFLOW_CURRENT_TAGS")))
-    set_env_var('MLFLOW_RUN_ID', active_run.info.run_id)
+    # mlflow.set_tags(json.loads(get_env_var("MLFLOW_CURRENT_TAGS")))
+    # set_env_var('MLFLOW_RUN_ID', active_run.info.run_id)
+    pass
 
 
 def mlflow_log_model(parent_run_id, model, flavor, **kwargs):

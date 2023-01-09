@@ -49,14 +49,14 @@ def load_artifact(artifact_name, remote=True):
 ########################
 def save_to_backend(artifact, artifact_name, remote=True):
     try:
-        logging.info(f"saving {artifact_name}...{utils.get_parent_run_id()}")
+        logging.info(f"saving {artifact_name} to backend...{utils.get_parent_run_id()}")
         if remote:
             controller.log_artifact.remote(utils.get_parent_run_id(), artifact, f"{artifact_name}")
         else:
             utils.mlflow_log_artifact(utils.get_parent_run_id(), artifact, f"{artifact_name}")
         utils.synchronize(target=_set_out_of_sync, args=(artifact_name,))
     except Exception as e:
-        logging.info('Could not complete execution - error occurred: ', exc_info=True)
+        logging.info(f'Could not complete execution for saving {artifact_name} to backend - error occurred: ', exc_info=True)
 
 
 ########################
@@ -66,6 +66,7 @@ def load_from_backend(artifact_name, remote=True):
     artifact = None
     try:
         run_id = utils.get_parent_run_id()
+        logging.info(f"Loading {artifact_name} from backend with run id {run_id}...")
         if run_id:
             if remote:
                 result = controller.load_artifact.remote(run_id,
@@ -78,7 +79,7 @@ def load_from_backend(artifact_name, remote=True):
                                                       dst_path="app/artifacts")
             utils.synchronize(target=_set_in_sync, args=(artifact_name,))
     except Exception as e:
-        logging.info('Could not complete execution - error occurred: ', exc_info=True)
+        logging.info(f'Could not complete execution for loading {artifact_name} - error occurred: ', exc_info=True)
     finally:
         return artifact
 

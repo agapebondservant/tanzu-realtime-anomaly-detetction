@@ -258,7 +258,7 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         buffers = settings.anomaly_detection.prepare_data(data, sample_frequency, extvars)
 
         # Retrieve stepwise_fit (used by ARIMA model only)
-        stepwise_fit = feature_store_remote.load_artifact('anomaly_auto_arima')
+        stepwise_fit = feature_store_remote.load_artifact('anomaly_auto_arima', remote=False)
 
         # Retrieve training results
         model_results = settings.anomaly_detection.get_prior_forecasts()
@@ -321,6 +321,7 @@ def initialize():
         with mlflow.start_run(run_name=run_name) as active_run:
             os.environ['MLFLOW_RUN_ID'] = active_run.info.run_id
             os.environ['MLFLOW_RUN_NAME'] = run_name
+            mlflow.set_tags({'runlevel': 'root'})
 
             # if config.firehose_monitor is None:
             config.firehose_monitor = FirehoseMonitor(host=config.host)
