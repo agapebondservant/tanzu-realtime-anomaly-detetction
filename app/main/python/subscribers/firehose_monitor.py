@@ -36,7 +36,7 @@ class FirehoseMonitor(subscriber.Subscriber):
                 self.new_data = pd.DataFrame(data=[], columns=csv_data_source.get_data_schema())
             self.new_data = utils.append_json_list_to_dataframe(self.new_data, json.loads(body))
 
-            # update the feature store by appening the new data to the existing dataset
+            # update the feature store by appending the new data to the existing dataset
             csv_data_source.add_data(self.new_data)
 
             # Reset new_data

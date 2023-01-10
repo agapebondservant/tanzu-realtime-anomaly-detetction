@@ -7,6 +7,7 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 from app.main.python import feature_store, config
 from app.main.python.utils import utils
+import logging
 
 data_columns = None
 
