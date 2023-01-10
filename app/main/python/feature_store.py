@@ -28,22 +28,22 @@ def save_artifact(artifact, artifact_name, distributed=True):
         save_to_backend(artifact, artifact_name, distributed=distributed)
     except Exception as e:
         logging.debug(f'Could not complete execution for save_artifact - {artifact_name} - error occurred: ',
-                     exc_info=True)
+                      exc_info=True)
 
 
 ########################
 # Save to cache
 ########################
-def load_artifact(artifact_name, distributed=True):
+def load_artifact(artifact_name, distributed=True, can_cache=True):
     try:
-        if _get_sync_status(artifact_name):
+        if _get_sync_status(artifact_name) and can_cache:
             artifact = load_from_cache(artifact_name)
         else:
             artifact = load_from_backend(artifact_name, distributed=distributed)
         return artifact
     except Exception as e:
         logging.debug(f'Could not complete execution for load_artifact - {artifact_name} - error occurred: ',
-                     exc_info=True)
+                      exc_info=True)
 
 
 ########################
@@ -52,13 +52,21 @@ def load_artifact(artifact_name, distributed=True):
 def save_to_backend(artifact, artifact_name, distributed=True):
     try:
         logging.info(f"saving {artifact_name} to backend...{utils.get_parent_run_id()}")
+
+        artifact_handle = open(f"/parent/app/artifacts/{artifact_name}", "wb")
+        joblib.dump(artifact, artifact_handle)
+        artifact_handle.close()
+
         if distributed:
             controller.log_artifact.remote(utils.get_parent_run_id(), artifact, f"{artifact_name}")
         else:
             utils.mlflow_log_artifact(utils.get_parent_run_id(), artifact, f"{artifact_name}")
         _set_out_of_sync(artifact_name)
+
+        logging.info(f"{artifact_name} saved to backend.")
     except Exception as e:
-        logging.debug(f'Could not complete execution for saving {artifact_name} to backend - error occurred: ', exc_info=True)
+        logging.debug(f'Could not complete execution for saving {artifact_name} to backend - error occurred: ',
+                      exc_info=True)
 
 
 ########################
@@ -72,11 +80,13 @@ def load_from_backend(artifact_name, distributed=True):
         if run_id:
             if distributed:
                 result = controller.load_artifact.remote(run_id,
+                                                         artifact_name,
                                                          artifact_uri=f"runs:/{run_id}/{artifact_name}",
                                                          dst_path="/parent/app/artifacts")
                 artifact = ray.get(result)
             else:
                 artifact = utils.mlflow_load_artifact(run_id,
+                                                      artifact_name,
                                                       artifact_uri=f"runs:/{run_id}/{artifact_name}",
                                                       dst_path="/parent/app/artifacts")
             _set_in_sync(artifact_name)
@@ -135,6 +145,18 @@ def save_offset(offset, offset_name):
 ########################
 def load_offset(offset_name, distributed=True):
     return load_artifact(f'{offset_name}_offset', distributed=distributed)
+
+
+########################
+# Log metric
+########################
+def log_metric(metric, metric_name, distributed=True):
+    run_id = utils.get_parent_run_id()
+    logging.info(f"Logging metric {metric_name} from backend with run id {run_id}...")
+    if distributed:
+        controller.log_metric(run_id, key=metric_name, value=metric)
+    else:
+        utils.mlflow_log_metric(run_id, key=metric_name, value=metric)
 
 
 ########################

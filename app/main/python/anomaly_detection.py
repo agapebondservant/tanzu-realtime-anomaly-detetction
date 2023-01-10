@@ -483,7 +483,7 @@ def get_time_lags(timeframe='day'):
 
 def publish_trend_stats(actual_negative_sentiments=None):
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False)
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False, can_cache=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 

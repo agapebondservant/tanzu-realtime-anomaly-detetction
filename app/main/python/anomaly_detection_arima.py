@@ -260,7 +260,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     print(f"Anomaly distribution: \n{model_arima_results_full['anomaly'].value_counts()}")
 
     # TODO: Publish anomaly summary to queue
-    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments')
+    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments', distributed=False)
     publish_trend_stats(actual_negative_sentiments)
 
     return model_arima_results_full
@@ -301,7 +301,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
     marker_date_start = max(end_date - timedelta(minutes=data_freq * len(target)), utils.get_max_index(target)) if fitted_values_forecasted is not None else None
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
-    feature_store.save_artifact(mae_error, 'anomaly_mae_error')
+    feature_store.log_metric(mae_error, 'anomaly_mae_error', distributed=False)
 
     # TODO: Publish metrics to queue
     exporter.prepare_histogram('anomaly_mae_error',
@@ -431,7 +431,7 @@ def get_time_lags(timeframe='day'):
 
 def publish_trend_stats(actual_negative_sentiments=None):
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments')
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False, can_cache=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 

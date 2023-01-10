@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from app.main.python.publishers.firehose import Firehose
 from app.main.python.publishers.post_collector import PostCollector
 from app.main.python.subscribers.dashboard_monitor import DashboardMonitor
-from app.main.python import config, csv_data
+from app.main.python import config, csv_data_source
 from app.main.python.utils import utils
 from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
 from app.main.python.settings import settings
@@ -328,7 +328,7 @@ def initialize():
             config.firehose_monitor.start()
 
             # if config.firehose is None:
-            config.firehose = Firehose(host=config.host, data=csv_data.get_data())
+            config.firehose = Firehose(host=config.host, data=csv_data_source.get_data())
             config.firehose.start()
 
             # if config.dashboard_monitor is None:

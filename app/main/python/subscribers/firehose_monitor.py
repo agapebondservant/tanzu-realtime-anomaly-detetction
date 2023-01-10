@@ -7,7 +7,7 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 from rabbitmq.connection import subscriber
 from app.main.python.publishers import notifier
-from app.main.python import csv_data, feature_store, config
+from app.main.python import csv_data_source, feature_store, config
 from app.main.python.utils import utils
 
 
@@ -30,21 +30,14 @@ class FirehoseMonitor(subscriber.Subscriber):
     def receive_messages(self, header, body):
         # Only start making updates to the dataset when the publisher is ready
         if header.timestamp > feature_store.load_offset('original', distributed=False):
-            # Get existing data
-            old_data = csv_data.get_data()
-            if old_data is None or old_data.empty:
-                return
 
             # track new data
             if self.new_data is None:
-                self.new_data = pd.DataFrame(data=[], columns=old_data.columns)
+                self.new_data = pd.DataFrame(data=[], columns=csv_data_source.get_data_schema())
             self.new_data = utils.append_json_list_to_dataframe(self.new_data, json.loads(body))
 
-            # Append new data to the dataset
-            data = pd.concat([old_data, self.new_data])
-
-            # update the feature store
-            feature_store.save_artifact(data, '_data', distributed=False)
+            # update the feature store by appening the new data to the existing dataset
+            csv_data_source.add_data(self.new_data)
 
             # Reset new_data
             self.new_data = None

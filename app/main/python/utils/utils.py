@@ -240,6 +240,15 @@ def mlflow_log_dict(parent_run_id, dataframe=None, dict_name=None):
     logging.info("Logging was successful.")
 
 
+def mlflow_log_metric(parent_run_id, **kwargs):
+    logging.info(f"In log_metric...run id = {parent_run_id}")
+    mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
+
+    MlflowClient().log_metric(parent_run_id, **kwargs)
+
+    logging.info("Logging was successful.")
+
+
 def mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs):
     logging.info(f"In log_artifact...run id = {parent_run_id}, local_path")
     mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
@@ -252,15 +261,22 @@ def mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs):
     logging.info("Logging was successful.")
 
 
-def mlflow_load_artifact(parent_run_id, **kwargs):
+def mlflow_load_artifact(parent_run_id, artifact_name, **kwargs):
     try:
         logging.info(f"In load_artifact...run id = {parent_run_id}, {kwargs}")
         mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
-        download_path = mlflow.artifacts.download_artifacts(**kwargs)
-        logging.info(f"Artifact downloaded to...{download_path}")
-        artifact_handle = open(f"{download_path}", "rb")
-        artifact = joblib.load(artifact_handle)
+        artifact_list = MlflowClient().list_artifacts(parent_run_id)
+        artifact_match = next((artifact for artifact in artifact_list if artifact.path == artifact_name), None)
+        artifact = None
+
+        if artifact_match:
+            download_path = mlflow.artifacts.download_artifacts(**kwargs)
+            logging.info(f"Artifact downloaded to...{download_path}")
+            artifact_handle = open(f"{download_path}", "rb")
+            artifact = joblib.load(artifact_handle)
+        else:
+            logging.info(f"Artifact {artifact_name} cannot be loaded (has not yet been saved).")
 
         return artifact
     except Exception as e:

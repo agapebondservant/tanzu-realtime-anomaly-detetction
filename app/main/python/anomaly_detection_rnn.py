@@ -384,7 +384,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
         model_rnn_forecasts) else None
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
-    feature_store.save_artifact(mae_error, 'anomaly_mae_error', distributed=False)
+    feature_store.log_metric(mae_error, 'anomaly_mae_error', distributed=False)
 
     # Set start_date, end_date
     target = model_rnn_forecasts if len(model_rnn_forecasts) else fitted_values_actual
@@ -551,7 +551,7 @@ def get_time_lags(timeframe='day'):
 
 def publish_trend_stats(actual_negative_sentiments=None):
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False)
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False, can_cache=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 

@@ -49,14 +49,22 @@ class ScaledTaskController:
     def log_artifact(self, parent_run_id, artifact, local_path, **kwargs):
         utils.mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs)
 
-    def load_artifact(self, parent_run_id, **kwargs):
-        return utils.mlflow_load_artifact(parent_run_id, **kwargs)
+    def load_artifact(self, parent_run_id, artifact_name, **kwargs):
+        return utils.mlflow_load_artifact(parent_run_id, artifact_name, **kwargs)
 
     def log_text(self, parent_run_id, **kwargs):
         logger.info(f"In log_text...run id = {parent_run_id}, {kwargs}")
         mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
         MlflowClient().log_text(parent_run_id, **kwargs)
+
+        logger.info("Logging was successful.")
+
+    def log_metric(self, parent_run_id, **kwargs):
+        logger.info(f"In log_text...run id = {parent_run_id}, {kwargs}")
+        mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
+
+        utils.mlflow_log_metric(parent_run_id, **kwargs)
 
         logger.info("Logging was successful.")
 
