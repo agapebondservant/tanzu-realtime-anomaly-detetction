@@ -29,7 +29,7 @@ class FirehoseMonitor(subscriber.Subscriber):
 
     def receive_messages(self, header, body):
         # Only start making updates to the dataset when the publisher is ready
-        if header.timestamp > feature_store.load_offset('original'):
+        if header.timestamp > feature_store.load_offset('original', distributed=False):
             # Get existing data
             old_data = csv_data.get_data()
             if old_data is None or old_data.empty:
@@ -44,7 +44,7 @@ class FirehoseMonitor(subscriber.Subscriber):
             data = pd.concat([old_data, self.new_data])
 
             # update the feature store
-            feature_store.save_artifact(data, '_data')
+            feature_store.save_artifact(data, '_data', distributed=False)
 
             # Reset new_data
             self.new_data = None

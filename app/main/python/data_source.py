@@ -6,5 +6,5 @@ def get_data(begin_offset=None, end_offset=None):
 
 
 def get_arima_model_results():
-    arima_model_results = feature_store.load_artifact('anomaly_arima_model_results')
+    arima_model_results = feature_store.load_artifact('anomaly_arima_model_results', distributed=False)
     return arima_model_results

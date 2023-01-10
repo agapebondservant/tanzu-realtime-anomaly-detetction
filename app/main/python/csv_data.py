@@ -39,10 +39,10 @@ def get_data(begin_offset=None, end_offset=None):
         data = data[data.index < end_offset]
 
     # Store to feature store
-    feature_store.save_artifact(data, '_data')
+    feature_store.save_artifact(data, '_data', distributed=False)
 
     return data
 
 
 def get_cached_data():
-    return feature_store.load_artifact('_data')
+    return feature_store.load_artifact('_data', distributed=False)

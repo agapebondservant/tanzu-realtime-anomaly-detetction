@@ -1,5 +1,16 @@
 import joblib
 import logging
+from app.main.python.distributed.controllers import ScaledTaskController
+import os
+from app.main.python.utils import utils
+import ray
+from os.path import exists
+
+ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
+                      'env_vars': dict(os.environ),
+                      'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
+
+controller = ScaledTaskController.remote()
 
 ########################
 # Cache
@@ -11,53 +22,105 @@ cache = {}
 ########################
 # Save to cache
 ########################
-def save_artifact(artifact, artifact_name):
+def save_artifact(artifact, artifact_name, distributed=True):
     try:
         save_to_cache(artifact, artifact_name)
-        save_to_backend(artifact, artifact_name)
+        save_to_backend(artifact, artifact_name, distributed=distributed)
     except Exception as e:
-        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
+        logging.debug(f'Could not complete execution for save_artifact - {artifact_name} - error occurred: ',
+                     exc_info=True)
 
 
 ########################
 # Save to cache
 ########################
-def load_artifact(artifact_name):
+def load_artifact(artifact_name, distributed=True):
     try:
-        artifact = load_from_cache(artifact_name)
-        if artifact is None:
-            artifact = load_from_backend(artifact_name)
+        if _get_sync_status(artifact_name):
+            artifact = load_from_cache(artifact_name)
+        else:
+            artifact = load_from_backend(artifact_name, distributed=distributed)
         return artifact
     except Exception as e:
-        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
+        logging.debug(f'Could not complete execution for load_artifact - {artifact_name} - error occurred: ',
+                     exc_info=True)
 
 
 ########################
 # Save artifact
-# TODO: Use S3-compatible store
 ########################
-def save_to_backend(artifact, artifact_name):
+def save_to_backend(artifact, artifact_name, distributed=True):
     try:
-        artifact_handle = open(f"app/artifacts/{artifact_name}.pkl", "wb")
-        joblib.dump(artifact, artifact_handle)
-        artifact_handle.close()
+        logging.info(f"saving {artifact_name} to backend...{utils.get_parent_run_id()}")
+        if distributed:
+            controller.log_artifact.remote(utils.get_parent_run_id(), artifact, f"{artifact_name}")
+        else:
+            utils.mlflow_log_artifact(utils.get_parent_run_id(), artifact, f"{artifact_name}")
+        _set_out_of_sync(artifact_name)
     except Exception as e:
-        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
+        logging.debug(f'Could not complete execution for saving {artifact_name} to backend - error occurred: ', exc_info=True)
 
 
 ########################
 # Load artifact
-# TODO: Use S3-compatible store
 ########################
-def load_from_backend(artifact_name):
+def load_from_backend(artifact_name, distributed=True):
     artifact = None
     try:
-        artifact_handle = open(f"app/artifacts/{artifact_name}.pkl", "rb")
-        artifact = joblib.load(artifact_handle)
+        run_id = utils.get_parent_run_id()
+        logging.info(f"Loading {artifact_name} from backend with run id {run_id}...")
+        if run_id:
+            if distributed:
+                result = controller.load_artifact.remote(run_id,
+                                                         artifact_uri=f"runs:/{run_id}/{artifact_name}",
+                                                         dst_path="/parent/app/artifacts")
+                artifact = ray.get(result)
+            else:
+                artifact = utils.mlflow_load_artifact(run_id,
+                                                      artifact_uri=f"runs:/{run_id}/{artifact_name}",
+                                                      dst_path="/parent/app/artifacts")
+            _set_in_sync(artifact_name)
+            logging.info(f"{artifact_name} loaded from backend.")
     except Exception as e:
-        logging.debug('Could not complete execution - error occurred: ', exc_info=True)
+        logging.debug(f'Could not complete execution for loading {artifact_name} - error occurred: ', exc_info=True)
     finally:
         return artifact
+
+
+########################
+# Save model
+########################
+def save_model(model, model_name, flavor='sklearn'):
+    try:
+        run_id = utils.get_parent_run_id()
+        controller.log_model.remote(run_id,
+                                    model,
+                                    flavor,
+                                    artifact_path=flavor,
+                                    registered_model_name=model_name,
+                                    await_registration_for=None)
+    except Exception as e:
+        logging.info(f'Could not complete execution for save_model - {model_name}- error occurred: ', exc_info=True)
+
+
+########################
+# Load model
+########################
+def load_model(model_name, flavor='sklearn', stage='None'):
+    try:
+        run_id = utils.get_parent_run_id()
+        model_uri = f"models:/{model_name}/{stage}"  # if stage else f"runs:/{run_id}/{flavor}"
+        result = controller.load_model.remote(run_id,
+                                              flavor,
+                                              model_uri=model_uri,
+                                              dst_path="/parent/app/artifacts")
+        if result is not None:
+            model = ray.get(result)
+        else:
+            model = load_from_cache(model_name)
+        return model
+    except Exception as e:
+        logging.info(f'Could not complete execution for load_model - {model_name}- error occurred: ', exc_info=True)
 
 
 ########################
@@ -70,8 +133,8 @@ def save_offset(offset, offset_name):
 ########################
 # Load offset
 ########################
-def load_offset(offset_name):
-    return load_artifact(f'{offset_name}_offset')
+def load_offset(offset_name, distributed=True):
+    return load_artifact(f'{offset_name}_offset', distributed=distributed)
 
 
 ########################
@@ -79,6 +142,13 @@ def load_offset(offset_name):
 ########################
 def save_to_cache(artifact, artifact_name):
     cache[artifact_name] = artifact
+    try:
+        artifact_path = f"/parent/app/artifacts/{artifact_name}"
+        artifact_handle = open(artifact_path, "wb")
+        joblib.dump(artifact, artifact_handle)
+        artifact_handle.close()
+    except Exception as e:
+        logging.debug(f'Could not save {artifact_name} to cache at {artifact_path} - error occurred: ', exc_info=True)
     # st.session_state[artifact_name] = artifact
 
 
@@ -88,4 +158,39 @@ def save_to_cache(artifact, artifact_name):
 ########################
 def load_from_cache(artifact_name):
     # return st.session_state[artifact_name]
-    return cache.get(artifact_name)
+    # return cache.get(artifact_name)
+    artifact = None
+    try:
+        artifact_path = f"/parent/app/artifacts/{artifact_name}"
+        if exists(artifact_path):
+            artifact_handle = open(artifact_path, "rb")
+            artifact = joblib.load(artifact_handle)
+            logging.info(f"Artifact {artifact_path} loaded from cache.")
+    except Exception as e:
+        logging.info(f'Could not load artifact {artifact_name} from cache - error occurred: ', exc_info=True)
+    finally:
+        return artifact
+
+
+########################
+# Set in_sync flag=True for this artifact in the cache
+# (used to implement dirty read flag for cache)
+########################
+def _set_in_sync(artifact_name):
+    cache[f"{artifact_name}_in_sync_flag"] = True
+
+
+########################
+# Set out_of_sync flag=False for this artifact in the cache
+# (used to implement dirty read flag for cache)
+########################
+def _set_out_of_sync(artifact_name):
+    cache[f"{artifact_name}_in_sync_flag"] = False
+
+
+########################
+# Set in-sync status for this artifact in the cache
+# (used to implement dirty read flag for cache)
+########################
+def _get_sync_status(artifact_name):
+    return cache.get(f"{artifact_name}_in_sync_flag")

@@ -42,18 +42,18 @@ st.text('Near-realtime showcase of sentiment-based anomaly detection using Vmwar
 
 placeholder_tab1, placeholder_tab2, placeholder_tab3 = st.empty(), st.empty(), st.empty()
 
-tab1, tab2, tab3 = st.tabs(["Home", "Feedback", "Anomalies"])
+tab1, tab2, tab3 = st.tabs(["Anomalies", "Feedback", "Charts"])
 
 # Charts
 base_key = time.time()
-with tab1:
-    logging.info("Refreshing dashboard...")
 
-    timeframe = st.selectbox('Select time period', ('day', 'hour', 'week'))
+# Anomalies
+with tab1:
+    timeframe2 = st.selectbox('Select a time period', ('day', 'hour', 'week'))
 
     st.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
 
-    dashboard_widgets.render_trends_dashboard(timeframe)
+    dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)
 
 # Posts
 with tab2:
@@ -75,13 +75,14 @@ with tab2:
 
     dashboard_widgets.render_sentiment_analysis_dashboard()
 
-# Anomalies
 with tab3:
-    timeframe2 = st.selectbox('Select a time period', ('day', 'hour', 'week'))
+    logging.info("Refreshing dashboard...")
+
+    timeframe = st.selectbox('Select time period', ('day', 'hour', 'week'))
 
     st.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
 
-    dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)
+    dashboard_widgets.render_trends_dashboard(timeframe)
 
 # Refresh the screen at a configured interval
 st_autorefresh(interval=config.dashboard_refresh_interval * 1000, key="anomalyrefresher")

@@ -5,7 +5,7 @@ import streamlit as st
 import logging
 import warnings
 import traceback
-from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store, feature_store_remote
+from app.main.python import sentiment_analysis, anomaly_detection, data_source, feature_store
 from sklearn.preprocessing import StandardScaler
 from app.main.python.publishers.firehose import Firehose
 from app.main.python.publishers.post_collector import PostCollector
@@ -73,7 +73,7 @@ def sentiment_analysis_training_pipeline():
             # Save vectorizer
             sentiment_analysis.save_vectorizer(vectorizer)
 
-            feature_store.save_artifact(True, 'sentiment_analysis_is_trained')
+            feature_store.save_artifact(True, 'sentiment_analysis_is_trained', distributed=False)
 
             logging.info("Sentiment Analysis Pipeline execution complete.")
     except Exception as e:
@@ -134,13 +134,13 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
-    return feature_store.load_artifact('anomaly_detection_is_trained') is None
+    return feature_store.load_artifact('anomaly_detection_is_trained', distributed=False) is None
 
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def sentiment_analysis_needs_training():
-    logging.info(f"Needs training ... {feature_store.load_artifact('sentiment_analysis_is_trained') is None}")
-    return feature_store.load_artifact('sentiment_analysis_is_trained') is None
+    logging.info(f"Needs training ... {feature_store.load_artifact('sentiment_analysis_is_trained', distributed=False) is None}")
+    return feature_store.load_artifact('sentiment_analysis_is_trained', distributed=False) is None
 
 
 def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, rebuild=False):
@@ -226,7 +226,7 @@ def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, r
                                                                        data_freq=data_freq)
 
             # TEMPORARY: Set a flag indicating that training was done
-            feature_store.save_artifact(True, 'anomaly_detection_is_trained')
+            feature_store.save_artifact(True, 'anomaly_detection_is_trained', distributed=False)
 
             return fig
 
@@ -258,7 +258,7 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         buffers = settings.anomaly_detection.prepare_data(data, sample_frequency, extvars)
 
         # Retrieve stepwise_fit (used by ARIMA model only)
-        stepwise_fit = feature_store_remote.load_artifact('anomaly_auto_arima', remote=False)
+        stepwise_fit = feature_store.load_artifact('anomaly_auto_arima', distributed=False)
 
         # Retrieve training results
         model_results = settings.anomaly_detection.get_prior_forecasts()
@@ -314,7 +314,6 @@ def anomaly_detection_stats(sample_frequency):
 # Initialize MQ connections
 #############################
 def initialize():
-    logging.info(f"in initialize...{utils.get_cmd_arg('model_name')} {config.firehose} {config.dashboard_monitor}")
     if config.firehose_monitor is None or config.firehose is None or config.dashboard_monitor is None:
         mlflow.end_run()
         run_name = datetime.now().strftime("%Y-%m-%d-%H%M")
@@ -322,6 +321,7 @@ def initialize():
             os.environ['MLFLOW_RUN_ID'] = active_run.info.run_id
             os.environ['MLFLOW_RUN_NAME'] = run_name
             mlflow.set_tags({'runlevel': 'root'})
+            utils.mlflow_generate_autolog_metrics(flavor='sklearn')
 
             # if config.firehose_monitor is None:
             config.firehose_monitor = FirehoseMonitor(host=config.host)

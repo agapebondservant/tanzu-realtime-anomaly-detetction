@@ -14,7 +14,7 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 import logging
 import traceback
-from app.main.python import feature_store, feature_store_remote, config
+from app.main.python import feature_store, config
 from collections import defaultdict
 import sys
 import joblib
@@ -147,8 +147,8 @@ def store_global_offset(dt):
     logging.info(f"saving original offset...{offset}")
 
     # save offset to global store
-    feature_store_remote.save_offset(offset, 'original')
-    feature_store_remote.save_offset(dt, 'original_datetime')
+    feature_store.save_offset(offset, 'original')
+    feature_store.save_offset(dt, 'original_datetime')
 
     # update all relevant consumers to read from the original offset
     monitors = [config.firehose_monitor]
@@ -297,8 +297,8 @@ def get_dataframe_from_dict(parent_run_id=None, artifact_name=None):
             f"Could not load dict with empty parent_run_id or artifact_name (run_id={parent_run_id}, artifact_name={artifact_name}")
 
 
-def mlflow_generate_autolog_metrics(flavor):
-    getattr(mlflow, flavor).autolog(log_models=False)
+def mlflow_generate_autolog_metrics(flavor=None):
+    getattr(mlflow, flavor).autolog(log_models=False) if flavor is not None else mlflow.autolog(log_models=False)
 
 
 def mlflow_evaluate_models(parent_run_id, flavor, baseline_model=None, candidate_model=None, data=None,

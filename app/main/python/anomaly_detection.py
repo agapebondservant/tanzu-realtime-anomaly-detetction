@@ -43,7 +43,7 @@ import re
 import pytz
 import math
 import json
-from app.main.python import feature_store, feature_store_remote, data_source, config
+from app.main.python import feature_store, data_source, config
 from app.main.python.utils import utils
 from app.main.python.metrics import prometheus_metrics_util
 
@@ -87,7 +87,7 @@ def initialize_input_features(data_freq, sliding_window_size, arima_order):
         'sliding_window_size': sliding_window_size,
         'arima_order': arima_order
     }
-    feature_store.save_artifact(input_features, "anomaly_detection_input_features")
+    feature_store.save_artifact(input_features, "anomaly_detection_input_features", distributed=False)
     return input_features
 
 
@@ -99,7 +99,7 @@ def generate_and_save_eda_metrics(df):
     data_summary = df.groupby('airline_sentiment').resample('1d').count()[['tweet_id']]
     data_summary = data_summary.unstack(0)
     data_summary['total'] = data_summary.sum(axis=1)
-    feature_store.save_artifact(data_summary, "anomaly_detection_eda")
+    feature_store.save_artifact(data_summary, "anomaly_detection_eda", distributed=False)
     return data_summary
 
 
@@ -144,7 +144,7 @@ def extract_features(df, sample_frequency='10min', extvars={}, is_partial_data=F
     filtered_data_sets = get_filtered_data_sets(df, sample_frequency, extvars)
 
     if is_partial_data is False:
-        feature_store.save_artifact(filtered_data_sets, 'anomaly_detection_buffers')
+        feature_store.save_artifact(filtered_data_sets, 'anomaly_detection_buffers', distributed=False)
 
     return filtered_data_sets
 
@@ -194,7 +194,7 @@ def get_filtered_data_sets(df, sample_frequency, extvars):
 def generate_and_save_adf_results(actual_negative_sentiments):
     logging.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
-    feature_store_remote.save_artifact(adfuller_results, 'adf_results', remote=False)
+    feature_store.save_artifact(adfuller_results, 'adf_results', distributed=False)
     return adfuller_results
 
 
@@ -228,7 +228,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
     # Set start_date, end_date
     end_date = utils.get_current_datetime()
     start_date = end_date - timedelta(hours=get_time_lags(timeframe))
-    marker_date = feature_store.load_offset('original_datetime')
+    marker_date = feature_store.load_offset('original_datetime', distributed=False)
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
@@ -254,14 +254,14 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 #######################################
 def build_model(actual_negative_sentiments, rebuild=False):
     logging.info("Running auto_arima to build ARIMA model...")
-    stepwise_fit = feature_store.load_artifact('anomaly_auto_arima')
+    stepwise_fit = feature_store.load_artifact('anomaly_auto_arima', distributed=False)
 
     if rebuild is True:
         stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
                                   max_q=6,
                                   seasonal=True, trace=True)
 
-    feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima')
+    feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
     return stepwise_fit
 
 
@@ -276,11 +276,11 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments):
 
     model_arima = ARIMA(actual_negative_sentiments_train['sentiment_normalized'], order=model_arima_order)
 
-    feature_store.save_artifact(model_arima, 'anomaly_arima_model')
+    feature_store.save_artifact(model_arima, 'anomaly_arima_model', distributed=False)
 
     model_arima_results = model_arima.fit()  # fit the model
 
-    feature_store.save_artifact(model_arima_results, 'anomaly_arima_model_results')
+    feature_store.save_artifact(model_arima_results, 'anomaly_arima_model_results', distributed=False)
 
     return model_arima_results
 
@@ -327,7 +327,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     print(f"Anomaly distribution: \n{model_arima_results_full['anomaly'].value_counts()}")
 
     # TODO: Publish anomaly summary to queue
-    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments')
+    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments', distributed=False)
     publish_trend_stats(actual_negative_sentiments)
 
     return model_arima_results_full
@@ -365,7 +365,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_arima_results_ful
                                             index=model_arima_forecasts.index)['forecastvalues']
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
-    feature_store.save_artifact(mae_error, 'anomaly_mae_error')
+    feature_store.save_artifact(mae_error, 'anomaly_mae_error', distributed=False)
 
     # TODO: Publish metrics to queue
     prometheus_metrics_util.send_arima_mae(mae_error)
@@ -427,7 +427,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         predictions = predictions.append(pd.Series(pred))
 
     # Save forecasts
-    feature_store.save_artifact(predictions, 'anomaly_arima_forecasts')
+    feature_store.save_artifact(predictions, 'anomaly_arima_forecasts', distributed=False)
 
     # Return predictions
     return predictions
@@ -438,7 +438,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 #######################################
 
 def get_prior_forecasts():
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts', distributed=False)
     if forecasts is None:
         forecasts = pd.Series([])
     return forecasts
@@ -449,7 +449,7 @@ def get_prior_forecasts():
 ##############################################
 
 def get_predictions_before_or_at(dt):
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts', distributed=False)
     logging.info(f"forecasts is {dt} {forecasts}")
     if forecasts is None:
         return pd.Series([])
@@ -461,7 +461,7 @@ def get_predictions_before_or_at(dt):
 ##############################################
 
 def get_forecasts_after(dt):
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts', distributed=False)
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index > dt]
@@ -483,13 +483,13 @@ def get_time_lags(timeframe='day'):
 
 def publish_trend_stats(actual_negative_sentiments=None):
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments')
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 
     stats = []
 
-    old_summary = feature_store.load_artifact('anomaly_summary')
+    old_summary = feature_store.load_artifact('anomaly_summary', distributed=False)
     if old_summary is None:
         old_summary = pd.DataFrame()
 
@@ -512,7 +512,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
     summary = pd.concat([old_summary, new_summary])
     logging.info(f"New Summary: {new_summary}")
 
-    feature_store.save_artifact(summary, 'anomaly_summary')
+    feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
 
     # Publish to queue
     # config.stats_publisher.send_data(new_summary)
@@ -526,7 +526,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
 
 
 def get_trend_stats():
-    return feature_store.load_artifact('anomaly_summary')
+    return feature_store.load_artifact('anomaly_summary', distributed=False)
 
 
 def process_stats(head, body):

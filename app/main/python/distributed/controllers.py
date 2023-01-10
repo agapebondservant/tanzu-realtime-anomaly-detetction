@@ -47,30 +47,9 @@ class ScaledTaskController:
         logger.info("Logging was successful.")
 
     def log_artifact(self, parent_run_id, artifact, local_path, **kwargs):
-        """logger.info(f"In log_artifact...run id = {parent_run_id}, local_path")
-        mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
-
-        artifact_handle = open(local_path, "wb")
-        joblib.dump(artifact, artifact_handle)
-        artifact_handle.close()
-
-        MlflowClient().log_artifact(parent_run_id, local_path, **kwargs)
-        logger.info("Logging was successful.")"""
         utils.mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs)
 
     def load_artifact(self, parent_run_id, **kwargs):
-        """try:
-            logger.info(f"In load_artifact...run id = {parent_run_id}, {kwargs}")
-            mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
-
-            download_path = mlflow.artifacts.download_artifacts(**kwargs)
-            logger.info(f"Artifact downloaded to...{download_path}")
-            artifact_handle = open(f"{download_path}", "rb")
-            artifact = joblib.load(artifact_handle)
-
-            return artifact
-        except Exception as e:
-            logging.info(f'Could not complete execution for load_artifact - {kwargs}- error occurred: ', exc_info=True)"""
         return utils.mlflow_load_artifact(parent_run_id, **kwargs)
 
     def log_text(self, parent_run_id, **kwargs):
@@ -100,8 +79,8 @@ class ScaledTaskController:
             logger.error(
                 f"Could not load dict with empty parent_run_id or artifact_name (run_id={parent_run_id}, artifact_name={artifact_name}")
 
-    def generate_autolog_metrics(self, flavor):
-        getattr(mlflow, flavor).autolog(log_models=False)
+    def generate_autolog_metrics(self, flavor=None):
+        utils.mlflow_generate_autolog_metrics(flavor=flavor)
 
     def evaluate_models(self, parent_run_id, flavor, baseline_model=None, candidate_model=None, data=None,
                         version=None):

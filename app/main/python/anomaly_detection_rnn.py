@@ -58,7 +58,6 @@ from mlmetrics import exporter
 # ANOMALY DETECTION
 ########################################################################################################################
 
-
 ########################
 # Ingest Data
 ########################
@@ -129,7 +128,7 @@ def get_filtered_data_sets(df, sample_frequency, extvars):
 def generate_and_save_adf_results(actual_negative_sentiments):
     logging.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
-    feature_store.save_artifact(adfuller_results, 'adf_results')
+    feature_store.save_artifact(adfuller_results, 'adf_results', distributed=False)
     return adfuller_results
 
 
@@ -163,7 +162,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
     # Set start_date, end_date
     end_date = utils.get_current_datetime()
     start_date = end_date - timedelta(hours=get_time_lags(timeframe))
-    marker_date = feature_store.load_offset('original_datetime')
+    marker_date = feature_store.load_offset('original_datetime', distributed=False)
 
     fig, ax = plt.subplots(figsize=(12, 5))
 
@@ -190,13 +189,13 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
 def build_model(actual_negative_sentiments, sliding_window_size=144, data_freq=10, rebuild=False):
     logging.info("Build RNN model...")
 
-    generator = feature_store.load_artifact('anomaly_timeseries')
+    generator = feature_store.load_artifact('anomaly_timeseries', distributed=False)
 
     if rebuild is True:
         # Build a Timeseries Generator
         generator = build_timeseries_generator(actual_negative_sentiments['sentiment_normalized'], sliding_window_size)
 
-    feature_store.save_artifact(generator, 'anomaly_timeseries')
+    feature_store.save_artifact(generator, 'anomaly_timeseries', distributed=False)
 
     return generator
 
@@ -221,7 +220,7 @@ def build_timeseries_generator(actual_negative_sentiments, training_window_size,
 
     standard_scaler_rnn.fit(actual_negative_sentiments_train[['sentiment']])
 
-    feature_store.save_artifact(standard_scaler_rnn, 'scaler_rnn_train')
+    feature_store.save_artifact(standard_scaler_rnn, 'scaler_rnn_train', distributed=False)
 
     scaled_train = standard_scaler_rnn.transform(actual_negative_sentiments_train[['sentiment']])
 
@@ -263,7 +262,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     # set up Early Stopping
     early_stop = EarlyStopping(monitor='val_loss', patience=2)
 
-    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
+    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train', distributed=False)
 
     logging.info(f"Standard scaler: {standard_scaler_rnn}")
 
@@ -294,7 +293,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     plt.savefig("anomaly_rnn_losses.png", bbox_inches='tight')
 
     # save the model
-    feature_store.save_artifact(rnn_model, 'anomaly_rnn_model')
+    feature_store.save_artifact(rnn_model, 'anomaly_rnn_model', distributed=False)
 
     return generate_forecasts_from_timeseries_generator(rnn_model,
                                                         sliding_window_size,
@@ -308,7 +307,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 #######################################
 def load_model():
     logging.info("Loading RNN model...")
-    return feature_store.load_artifact('anomaly_rnn_model')
+    return feature_store.load_artifact('anomaly_rnn_model', distributed=False)
 
 
 #######################################
@@ -352,7 +351,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     print(f"Anomaly distribution: \n{model_rnn_results_full['anomaly'].value_counts()}")
 
     # TODO: Publish anomaly summary to queue
-    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments')
+    feature_store.save_artifact(actual_negative_sentiments, 'actual_negative_sentiments', distributed=False)
     publish_trend_stats(actual_negative_sentiments)
 
     return model_rnn_results_full
@@ -385,7 +384,7 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
         model_rnn_forecasts) else None
 
     mae_error = median_absolute_error(fitted_values_predicted, fitted_values_actual)
-    feature_store.save_artifact(mae_error, 'anomaly_mae_error')
+    feature_store.save_artifact(mae_error, 'anomaly_mae_error', distributed=False)
 
     # Set start_date, end_date
     target = model_rnn_forecasts if len(model_rnn_forecasts) else fitted_values_actual
@@ -447,9 +446,9 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         actual_negative_sentiments_test = utils.get_next_rolling_window(actual_negative_sentiments, sliding_window_size)
 
     # Load the model
-    rnn_model = feature_store.load_artifact('anomaly_rnn_model')
+    rnn_model = feature_store.load_artifact('anomaly_rnn_model', distributed=False)
 
-    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train')
+    standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train', distributed=False)
 
     return generate_forecasts_from_timeseries_generator(rnn_model,
                                                         sliding_window_size,
@@ -491,7 +490,7 @@ def generate_forecasts_from_timeseries_generator(rnn_model, sliding_window_size,
     print(f"rnn predictions : {rnn_predictions}")
 
     # Store predictions
-    feature_store.save_artifact(rnn_predictions, 'anomaly_rnn_forecasts')
+    feature_store.save_artifact(rnn_predictions, 'anomaly_rnn_forecasts', distributed=False)
 
     return rnn_predictions
 
@@ -500,7 +499,7 @@ def generate_forecasts_from_timeseries_generator(rnn_model, sliding_window_size,
 # Get any prior forecasts
 #######################################
 def get_prior_forecasts():
-    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts', distributed=False)
     if forecasts is None:
         forecasts = pd.Series([])
     return forecasts
@@ -511,7 +510,7 @@ def get_prior_forecasts():
 ##############################################
 
 def get_predictions_before_or_at(dt):
-    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts', distributed=False)
     logging.info(f"forecasts is {dt} {forecasts}")
     if forecasts is None:
         return pd.Series([])
@@ -523,7 +522,7 @@ def get_predictions_before_or_at(dt):
 ##############################################
 
 def get_forecasts_after(dt):
-    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_rnn_forecasts', distributed=False)
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index > dt]
@@ -552,13 +551,13 @@ def get_time_lags(timeframe='day'):
 
 def publish_trend_stats(actual_negative_sentiments=None):
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments')
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 
     stats = []
 
-    old_summary = feature_store.load_artifact('anomaly_summary')
+    old_summary = feature_store.load_artifact('anomaly_summary', distributed=False)
     if old_summary is None:
         old_summary = pd.DataFrame()
 
@@ -581,7 +580,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
     summary = pd.concat([old_summary, new_summary])
     logging.info(f"New Summary: {new_summary}")
 
-    feature_store.save_artifact(summary, 'anomaly_summary')
+    feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
 
     # Publish to queue
     # config.stats_publisher.send_data(new_summary)
@@ -595,7 +594,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
 
 
 def get_trend_stats():
-    return feature_store.load_artifact('anomaly_summary')
+    return feature_store.load_artifact('anomaly_summary', distributed=False)
 
 
 def process_stats(head, body):
