@@ -51,11 +51,10 @@ def load_artifact(artifact_name, distributed=True, can_cache=True):
 ########################
 def save_to_backend(artifact, artifact_name, distributed=True):
     try:
-        logging.info(f"saving {artifact_name} to backend...{utils.get_parent_run_id()}")
+        logging.debug(f"saving {artifact_name} to backend...{utils.get_parent_run_id()}")
 
-        artifact_handle = open(f"/parent/app/artifacts/{artifact_name}", "wb")
-        joblib.dump(artifact, artifact_handle)
-        artifact_handle.close()
+        with open(f"/parent/app/artifacts/{artifact_name}", "wb") as artifact_handle:
+            joblib.dump(artifact, artifact_handle)
 
         if distributed:
             controller.log_artifact.remote(utils.get_parent_run_id(), artifact, f"{artifact_name}")
@@ -63,7 +62,7 @@ def save_to_backend(artifact, artifact_name, distributed=True):
             utils.mlflow_log_artifact(utils.get_parent_run_id(), artifact, f"{artifact_name}")
         _set_out_of_sync(artifact_name)
 
-        logging.info(f"{artifact_name} saved to backend.")
+        logging.debug(f"{artifact_name} saved to backend.")
     except Exception as e:
         logging.debug(f'Could not complete execution for saving {artifact_name} to backend - error occurred: ',
                       exc_info=True)
@@ -76,7 +75,7 @@ def load_from_backend(artifact_name, distributed=True):
     artifact = None
     try:
         run_id = utils.get_parent_run_id()
-        logging.info(f"Loading {artifact_name} from backend with run id {run_id}...")
+        logging.debug(f"Loading {artifact_name} from backend with run id {run_id}...")
         if run_id:
             if distributed:
                 result = controller.load_artifact.remote(run_id,
@@ -84,13 +83,16 @@ def load_from_backend(artifact_name, distributed=True):
                                                          artifact_uri=f"runs:/{run_id}/{artifact_name}",
                                                          dst_path="/parent/app/artifacts")
                 artifact = ray.get(result)
+                if artifact is not None:
+                    with open(f"/parent/app/artifacts/{artifact_name}", "wb") as artifact_handle:
+                        joblib.dump(artifact, artifact_handle)
             else:
                 artifact = utils.mlflow_load_artifact(run_id,
                                                       artifact_name,
                                                       artifact_uri=f"runs:/{run_id}/{artifact_name}",
                                                       dst_path="/parent/app/artifacts")
             _set_in_sync(artifact_name)
-            logging.info(f"{artifact_name} loaded from backend.")
+            logging.debug(f"{artifact_name} loaded from backend.")
     except Exception as e:
         logging.debug(f'Could not complete execution for loading {artifact_name} - error occurred: ', exc_info=True)
     finally:
@@ -154,7 +156,7 @@ def log_metric(metric, metric_name, distributed=True):
     run_id = utils.get_parent_run_id()
     logging.info(f"Logging metric {metric_name} from backend with run id {run_id}...")
     if distributed:
-        controller.log_metric(run_id, key=metric_name, value=metric)
+        controller.log_metric.remote(run_id, key=metric_name, value=metric)
     else:
         utils.mlflow_log_metric(run_id, key=metric_name, value=metric)
 
@@ -166,9 +168,8 @@ def save_to_cache(artifact, artifact_name):
     cache[artifact_name] = artifact
     try:
         artifact_path = f"/parent/app/artifacts/{artifact_name}"
-        artifact_handle = open(artifact_path, "wb")
-        joblib.dump(artifact, artifact_handle)
-        artifact_handle.close()
+        with open(artifact_path, "wb") as artifact_handle:
+            joblib.dump(artifact, artifact_handle)
     except Exception as e:
         logging.debug(f'Could not save {artifact_name} to cache at {artifact_path} - error occurred: ', exc_info=True)
     # st.session_state[artifact_name] = artifact
@@ -185,11 +186,11 @@ def load_from_cache(artifact_name):
     try:
         artifact_path = f"/parent/app/artifacts/{artifact_name}"
         if exists(artifact_path):
-            artifact_handle = open(artifact_path, "rb")
-            artifact = joblib.load(artifact_handle)
-            logging.info(f"Artifact {artifact_path} loaded from cache.")
+            with open(artifact_path, "rb") as artifact_handle:
+                artifact = joblib.load(artifact_handle)
+                logging.debug(f"Artifact {artifact_path} loaded from cache.")
     except Exception as e:
-        logging.info(f'Could not load artifact {artifact_name} from cache - error occurred: ', exc_info=True)
+        logging.debug(f'Could not load artifact {artifact_name} from cache - error occurred: ', exc_info=True)
     finally:
         return artifact
 

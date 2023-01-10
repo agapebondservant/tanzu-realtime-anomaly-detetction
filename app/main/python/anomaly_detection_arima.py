@@ -174,7 +174,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
               colors='red')
     ax.set_ylabel('Number of posts', fontsize=14)
     logging.info(f"Marker date...{marker_date}; end date...{end_date}")
-    ax.axvspan(marker_date, end_date, alpha=0.5, color='gray')
+    ax.axvspan(marker_date, end_date, alpha=0.5, color='gray') if marker_date else True
     ax.legend()
 
     return fig
@@ -214,7 +214,9 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 
     model_arima_results = model_arima.fit()  # fit the model
 
-    # feature_store_remote.save_artifact(model_arima_results, 'anomaly_arima_model_results')
+    feature_store.log_metric(model_arima_results.aic, 'aic', distributed=False)  # track the Akaike Information Criterion
+
+    feature_store.log_metric(model_arima_results.mae, 'mae', distributed=False)  # track the Mean Absolute Error
 
     return model_arima_results.fittedvalues
 

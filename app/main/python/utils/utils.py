@@ -19,7 +19,10 @@ from collections import defaultdict
 import sys
 import joblib
 from multiprocessing import Process, Lock
+from filelock import FileLock, Timeout
+
 mutex = Lock()
+file_locks = {}
 
 
 ################################################
@@ -61,7 +64,7 @@ def set_env_var(name, value):
 
 
 ################################################
-# Thread Utils
+# Thread/Concurrency Utils
 #
 ################################################
 
@@ -69,6 +72,19 @@ def synchronize(target=None, args=(), kwargs={}):
     with mutex:
         p = Process(target=target, args=args, kwargs=kwargs)
         p.start()
+
+
+def synchronize_file_write(file=None, file_path=None):
+    try:
+        global file_locks
+        key = file_path.replace(os.sep, '_')
+        lock = file_locks.get(key) or FileLock(f"{file_path}.lock")
+        with lock:
+            with open(file_path, "wb") as file_handle:
+                joblib.dump(file, file_handle)
+    except Exception as e:
+        logging.info(f'Synchronized file write to {file} at file_path {file_path} failed - error occurred: ',
+                     exc_info=True)
 
 
 ################################################
@@ -185,7 +201,8 @@ def get_current_run_id():
 
 
 def get_parent_run_id(experiment_ids=[0]):
-    runs = mlflow.search_runs(experiment_ids=experiment_ids, filter_string="tags.runlevel='root'", max_results=1, output_format='list')
+    runs = mlflow.search_runs(experiment_ids=experiment_ids, filter_string="tags.runlevel='root'", max_results=1,
+                              output_format='list')
     logging.debug(f"Parent run is...{runs}")
     return runs[0].info.run_id if len(runs) else None
 
@@ -253,10 +270,9 @@ def mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs):
     logging.info(f"In log_artifact...run id = {parent_run_id}, local_path")
     mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
-    artifact_handle = open(local_path, "wb")
-    joblib.dump(artifact, artifact_handle)
-    artifact_handle.close()
-
+    with open(local_path, "wb") as artifact_handle:
+        joblib.dump(artifact, artifact_handle)
+    # synchronize_file_write(file=artifact, file_path=local_path)
     MlflowClient().log_artifact(parent_run_id, local_path, **kwargs)
     logging.info("Logging was successful.")
 
@@ -273,8 +289,8 @@ def mlflow_load_artifact(parent_run_id, artifact_name, **kwargs):
         if artifact_match:
             download_path = mlflow.artifacts.download_artifacts(**kwargs)
             logging.info(f"Artifact downloaded to...{download_path}")
-            artifact_handle = open(f"{download_path}", "rb")
-            artifact = joblib.load(artifact_handle)
+            with open(f"{download_path}", "rb") as artifact_handle:
+                artifact = joblib.load(artifact_handle)
         else:
             logging.info(f"Artifact {artifact_name} cannot be loaded (has not yet been saved).")
 

@@ -550,6 +550,7 @@ def get_time_lags(timeframe='day'):
 
 
 def publish_trend_stats(actual_negative_sentiments=None):
+    logging.info("In publish_trend_stats...")
     if actual_negative_sentiments is None:
         actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False, can_cache=False)
 
