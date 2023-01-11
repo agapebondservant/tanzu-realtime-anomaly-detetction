@@ -182,7 +182,7 @@ pipenv install -r requirements-dev.txt
 pipenv install
 pipenv shell
 pip install -r requirements-dev.txt
-RAY_ADDRESS=<your Ray address> python -m streamlit run app/main/python/ui/dashboard.py --logger.level=info model_name=app.main.python.anomaly_detection_rnn model_stage=Staging
+RAY_ADDRESS=<your Ray address> python -m streamlit run app/main/python/ui/dashboard.py --logger.level=info model_name=app.main.python.anomaly_detection_rnn model_type=rnn model_stage=Staging
 ```
 
 * Launch tracker locally:
@@ -205,8 +205,8 @@ NOTE: Requires RabbitMQ topology (see "Set up RabbitMQ connection"):
 * Deploy apps:
 ```
 kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_stage=Production
-kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_model --model_stage=Staging
-kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_rnn --model_stage=Staging
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_model --model_type=arima --model_stage=Staging
+kubectl create deployment streamlit-dashboard --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/dashboard.py --model_name=anomaly_arima_rnn --model_type=rnn --model_stage=Staging
 kubectl create deployment streamlit-tracker --image=oawofolu/streamlit  -nstreamlit -- streamlit run app/main/python/ui/tracker.py
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=dashboard-svc --type=LoadBalancer -nstreamlit
 kubectl expose deployment streamlit-dashboard --port=8080 --target-port=8501 --name=tracker-svc --type=LoadBalancer -nstreamlit

@@ -177,7 +177,7 @@ def plot_positive_negative_trends(total_sentiments, actual_positive_sentiments, 
     ax.hlines(actual_negative_sentiments['sentiment'].median(), xmin=start_date, xmax=end_date, linestyles='--',
               colors='red')
     ax.set_ylabel('Number of posts', fontsize=14)
-    ax.axvspan(marker_date, end_date, alpha=0.5, color='gray')
+    ax.axvspan(marker_date, end_date, alpha=0.5, color='gray') if marker_date is not None else True
     ax.legend()
 
     return fig

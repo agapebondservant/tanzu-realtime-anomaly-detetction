@@ -9,8 +9,6 @@ from app.main.python.settings import settings
 
 
 # Initializations
-settings.model_name = utils.get_cmd_arg('model_name')
-settings.model_stage = utils.get_cmd_arg('model_stage')
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
 

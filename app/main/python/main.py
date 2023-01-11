@@ -333,7 +333,8 @@ def initialize():
             config.firehose.start()
 
             # if config.dashboard_monitor is None:
-            config.dashboard_monitor = DashboardMonitor(host=config.host, queue=config.dashboard_queue)
+            queue_suffix = '' if settings.model_stage == 'Production' else f"-{settings.model_type}"
+            config.dashboard_monitor = DashboardMonitor(host=config.host, queue=f"{config.dashboard_queue}{queue_suffix}")
             config.dashboard_monitor.start()
 
     # if config.dashboard_notifier_thread is None:

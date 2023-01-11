@@ -121,7 +121,7 @@ def save_model(model, model_name, flavor='sklearn'):
 def load_model(model_name, flavor='sklearn', stage='None'):
     try:
         run_id = utils.get_parent_run_id()
-        model_uri = f"models:/{model_name}/{stage}"  # if stage else f"runs:/{run_id}/{flavor}"
+        model_uri = f"models:/{model_name}/{stage}"
         result = controller.load_model.remote(run_id,
                                               flavor,
                                               model_uri=model_uri,
