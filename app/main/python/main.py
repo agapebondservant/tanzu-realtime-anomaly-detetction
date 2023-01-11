@@ -329,7 +329,7 @@ def initialize():
             config.firehose_monitor.start()
 
             # if config.firehose is None:
-            config.firehose = Firehose(host=config.host, data=csv_data_source.get_data())
+            config.firehose = Firehose(host=config.host, data=(csv_data_source.get_data() if settings.initialize_firehose == 'y' else None))
             config.firehose.start()
 
             # if config.dashboard_monitor is None:

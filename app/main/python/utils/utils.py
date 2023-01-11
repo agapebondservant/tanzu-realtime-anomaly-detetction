@@ -200,29 +200,11 @@ def get_current_run_id():
     return last_active_run.info.run_id if last_active_run else None
 
 
-def get_parent_run_id(experiment_ids=[0]):
-    runs = mlflow.search_runs(experiment_ids=experiment_ids, filter_string="tags.runlevel='root'", max_results=1,
+def get_parent_run_id(experiment_names=['Default']):
+    runs = mlflow.search_runs(experiment_names=experiment_names, filter_string="tags.runlevel='root'", max_results=1,
                               output_format='list')
     logging.debug(f"Parent run is...{runs}")
     return runs[0].info.run_id if len(runs) else None
-
-
-def prepare_mlflow_experiment():
-    current_experiment_name = get_env_var('CURRENT_EXPERIMENT')
-    current_experiment = mlflow.get_experiment_by_name(current_experiment_name)
-    current_experiment_id = current_experiment.experiment_id if current_experiment and current_experiment.lifecycle_stage == 'active' else mlflow.create_experiment(
-        current_experiment_name)
-    mlflow_tags = {'step': get_env_var('CURRENT_APP') or '', 'run_tag': get_env_var('RUN_TAG') or ''}
-    set_env_var("MLFLOW_CURRENT_TAGS", json.dumps(mlflow_tags))
-    set_env_var("MLFLOW_EXPERIMENT_ID", current_experiment_id)
-    logging.info(
-        f"Launching experiment...experiment name={current_experiment_name}, experiment id={current_experiment_id}, tags={mlflow_tags}")
-
-
-def prepare_mlflow_run(active_run):
-    # mlflow.set_tags(json.loads(get_env_var("MLFLOW_CURRENT_TAGS")))
-    # set_env_var('MLFLOW_RUN_ID', active_run.info.run_id)
-    pass
 
 
 def mlflow_log_model(parent_run_id, model, flavor, **kwargs):

@@ -134,3 +134,4 @@ class ScaledTaskController:
         except BaseException as e:
             logger.error(
                 "Candidate model training failed to satisfy configured thresholds...could not promote. Retaining baseline model.")
+            return False

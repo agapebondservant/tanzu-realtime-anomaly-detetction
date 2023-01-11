@@ -4,4 +4,5 @@ from app.main.python import anomaly_detection, anomaly_detection_rnn, anomaly_de
 model_name = utils.get_cmd_arg('model_name')
 model_type = utils.get_cmd_arg('model_type')
 model_stage = utils.get_cmd_arg('model_stage')
+initialize_firehose = utils.get_cmd_arg('initialize_firehose')
 anomaly_detection = anomaly_detection.use_model(model_name)
