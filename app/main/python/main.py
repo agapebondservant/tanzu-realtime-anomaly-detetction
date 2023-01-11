@@ -322,6 +322,7 @@ def initialize():
             os.environ['MLFLOW_RUN_NAME'] = run_name
             mlflow.set_tags({'runlevel': 'root'})
             utils.mlflow_generate_autolog_metrics(flavor='sklearn')
+            utils.mlflow_generate_autolog_metrics(flavor='tensorflow')
 
             # if config.firehose_monitor is None:
             config.firehose_monitor = FirehoseMonitor(host=config.host)

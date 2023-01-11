@@ -293,7 +293,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     plt.savefig("anomaly_rnn_losses.png", bbox_inches='tight')
 
     # save the model
-    feature_store.save_artifact(rnn_model, 'anomaly_rnn_model', distributed=False)
+    feature_store.save_model(rnn_model, 'anomaly_rnn_model', flavor='tensorflow')
 
     return generate_forecasts_from_timeseries_generator(rnn_model,
                                                         sliding_window_size,
@@ -307,7 +307,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 #######################################
 def load_model():
     logging.info("Loading RNN model...")
-    return feature_store.load_artifact('anomaly_rnn_model', distributed=False)
+    return feature_store.load_model('anomaly_rnn_model', flavor='tensorflow')
 
 
 #######################################
@@ -446,7 +446,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         actual_negative_sentiments_test = utils.get_next_rolling_window(actual_negative_sentiments, sliding_window_size)
 
     # Load the model
-    rnn_model = feature_store.load_artifact('anomaly_rnn_model', distributed=False)
+    rnn_model = feature_store.load_model('anomaly_rnn_model', flavor='tensorflow')
 
     standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train', distributed=False)
 
