@@ -613,3 +613,12 @@ def get_utility_vars():
         'anomaly_neutral_standard_scalar': StandardScaler(),
         'anomaly_negative_standard_scalar': StandardScaler(),
     }
+
+
+#######################################
+# Utility: Check if retraining is required
+# (data normalizers, etc)
+#######################################
+# TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
+def anomaly_detection_needs_training():
+    return feature_store.load_artifact('anomaly_detection_rnn_is_trained', distributed=False) is None

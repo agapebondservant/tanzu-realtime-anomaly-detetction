@@ -132,9 +132,8 @@ def anomaly_detection_show_trends(sample_frequency, reporting_timeframe):
         traceback.print_exc()
 
 
-# TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
-    return feature_store.load_artifact('anomaly_detection_is_trained', distributed=False) is None
+    return settings.anomaly_detection.anomaly_detection_needs_training()
 
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
