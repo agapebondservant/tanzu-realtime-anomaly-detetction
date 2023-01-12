@@ -127,10 +127,10 @@ def generate_and_save_metrics(x_train, x_test, y_train, y_test, model):
     test_roc_auc = roc_auc_score(y_test, model.predict_proba(x_test), multi_class='ovo')
 
     logging.info("Saving metrics...")
-    feature_store.log_metric(key='sentiment_train_acc', value=train_acc, distributed=False)
-    feature_store.log_metric(key='sentiment_test_acc', value=test_acc, distributed=False)
-    feature_store.log_metric(key='sentiment_train_roc_auc', value=train_roc_auc, distributed=False)
-    feature_store.log_metric(key='sentiment_test_roc_auc', value=test_roc_auc, distributed=False)
+    feature_store.log_metric(train_acc, 'sentiment_train_acc', distributed=False)
+    feature_store.log_metric(test_acc, 'sentiment_test_acc', distributed=False)
+    feature_store.log_metric(train_roc_auc, 'sentiment_train_roc_auc', distributed=False)
+    feature_store.log_metric(test_roc_auc, 'sentiment_test_roc_auc', distributed=False)
 
 
 ########################
