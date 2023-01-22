@@ -57,8 +57,8 @@ softwareupdate --install -a #on mac
 #### Deploy MLFlow <a name="deploy-mlflow"/>
 * Deploy MLFlow: see <a href="https://github.com/agapebondservant/mlflow-demo.git" target="_blank>repository</a>
 
-#### Setup Argo Workflows <a name="setup-argo-workflows"/>
-* Setup Argo Workflows:
+#### Setup Argo Events <a name="setup-argo-workflows"/>
+* Setup Argo Events:
 ```
 kubectl create ns argo-events
 kubectl apply -f resources/argo/amqp-event-source.yaml -n argo-events

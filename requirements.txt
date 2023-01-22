@@ -32,7 +32,7 @@ gunicorn
 boto3
 tensorflow
 rsocket
-asyncio
+# asyncio
 # nest_asyncio
 python-snappy
 mlflow==2.0.1

@@ -126,9 +126,9 @@ def filter_rows_by_head_or_tail(df, head=True, num_rows_in_head=None, num_rows_i
         return df[:-num_rows_in_tail] if head else df[-num_rows_in_tail:]
 
 
-def append_json_list_to_dataframe(df, json_records):
+def append_json_list_to_dataframe(df, json_records, index_col=0):
     df_data = json_records[1:]
-    df_index = epoch_as_datetime(json_records[0])
+    df_index = epoch_as_datetime(json_records[index_col])
     df_columns = df.columns
 
     if 'sentiment' in list(df_columns):
@@ -200,7 +200,7 @@ def get_current_run_id():
     return last_active_run.info.run_id if last_active_run else None
 
 
-def get_parent_run_id(experiment_names=['Default']):
+def get_root_run_id(experiment_names=['Default']):
     runs = mlflow.search_runs(experiment_names=experiment_names, filter_string="tags.runlevel='root'", max_results=1,
                               output_format='list')
     logging.debug(f"Parent run is...{runs}")
