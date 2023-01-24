@@ -43,8 +43,9 @@ import re
 import pytz
 import math
 import json
-from app.main.python import feature_store, data_source, config
+from app.main.python import feature_store, data_source
 from app.main.python.utils import utils
+import distributed.ray.utilities as utils_ext
 from app.main.python.metrics import prometheus_metrics_util
 
 
@@ -108,7 +109,7 @@ def generate_and_save_eda_metrics(df):
 #############################
 def filter_data(df, head=True, num_rows_head=None, num_rows_tail=None):
     logging.info("Filtering by retrieving only required subset of data...")
-    return utils.filter_rows_by_head_or_tail(df, head, num_rows_head, num_rows_tail)
+    return utils_ext.filter_rows_by_head_or_tail(df, head, num_rows_head, num_rows_tail)
 
 
 #############################
@@ -513,9 +514,6 @@ def publish_trend_stats(actual_negative_sentiments=None):
     logging.info(f"New Summary: {new_summary}")
 
     feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
-
-    # Publish to queue
-    # config.stats_publisher.send_data(new_summary)
 
     return new_summary
 
