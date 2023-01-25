@@ -40,14 +40,16 @@ def show_anomalies(timeframe):
             logging.info('Showing anomalies in Dashboard...')
 
             if main.anomaly_detection_needs_training():
-                main.anomaly_detection_training_pipeline(sample_freq, timeframe, rebuild=True)
+               main.anomaly_detection_training_pipeline_old(sample_freq, timeframe, rebuild=True)
             fig = main.anomaly_detection_inference_pipeline(sample_freq, timeframe)
-            st.pyplot(fig)
-
-            # Show Stats
-            render_stats_dashboard(sample_freq)
-
-            logging.info('Anomalies dashboard rendered.')
+            if fig is None:
+                st.header('Please wait...')
+                st.text('(Training is in progress)')
+            else:
+                st.pyplot(fig)
+                # Show Stats
+                render_stats_dashboard(sample_freq)
+                logging.info('Anomalies dashboard rendered.')
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()

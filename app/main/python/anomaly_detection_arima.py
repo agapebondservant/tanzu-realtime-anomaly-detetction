@@ -10,43 +10,25 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 import numpy as np
 import logging
-from statsmodels.tsa.seasonal import seasonal_decompose
-from pylab import rcParams
-from datetime import datetime
-from statsmodels.tsa.holtwinters import SimpleExpSmoothing, ExponentialSmoothing
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error
-from statsmodels.tsa.statespace.tools import diff
-from statsmodels.tsa.stattools import acovf, acf, pacf, pacf_yw, pacf_ols
-from pandas.plotting import lag_plot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quarter_plot
 from statsmodels.tsa.stattools import adfuller
-from statsmodels.tools.eval_measures import mse, rmse, meanabs, aic, bic
 from pmdarima import auto_arima
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler
-from sklearn.compose import ColumnTransformer
 from statsmodels.tsa.arima.model import ARIMA
-from statistics import median, mean
-import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
-import pytz
-import warnings
 import scipy.stats as st
-import math
-import seaborn as sns
-from pylab import rcParams
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
-from sklearn.model_selection import train_test_split
 import re
-import pytz
 import math
 import json
-from app.main.python import feature_store, data_source, config, anomaly_detection
-from app.main.python.utils import utils
+from app.main.python import feature_store, data_source, anomaly_detection
+from app.main.python.utils import utils, config
+import distributed.ray.utilities as utils_ext
 from mlmetrics import exporter
+from rabbitmq.connection.rabbitmq_producer import RabbitMQProducer
+import pika
 
 
 ########################################################################################################################
@@ -353,9 +335,9 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
     if rebuild:
         num_shifts = total_training_window + total_forecast_size - len(actual_negative_sentiments)
         df = actual_negative_sentiments.iloc[:int(total_training_window)]
-        df = utils.get_next_rolling_window(df, num_shifts) if num_shifts else df
+        df = utils_ext.get_next_rolling_window(df, num_shifts) if num_shifts else df
     else:
-        df = utils.get_next_rolling_window(actual_negative_sentiments, total_forecast_size)
+        df = utils_ext.get_next_rolling_window(actual_negative_sentiments, total_forecast_size)
 
     # Initialize the start & end indexes
     end_idx = len(df) - num_lags
@@ -465,9 +447,6 @@ def publish_trend_stats(actual_negative_sentiments=None):
 
     feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
 
-    # Publish to queue
-    # config.stats_publisher.send_data(new_summary)
-
     return new_summary
 
 
@@ -501,6 +480,5 @@ def get_utility_vars():
 # Utility: Check if retraining is required
 # (data normalizers, etc)
 #######################################
-# TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
     return feature_store.load_artifact('anomaly_detection_arima_is_trained', distributed=False) is None

@@ -1,8 +1,10 @@
 import joblib
 import logging
-from app.main.python.distributed.controllers import ScaledTaskController
+# from app.main.python.distributed.controllers import ScaledTaskController
+from distributed.ray.distributed import ScaledTaskController
+import distributed.ray.utilities as utils_ext
 import os
-from app.main.python.utils import utils
+# from app.main.python.utils import utils
 import ray
 from os.path import exists
 
@@ -51,15 +53,15 @@ def load_artifact(artifact_name, distributed=True, can_cache=True):
 ########################
 def save_to_backend(artifact, artifact_name, distributed=True):
     try:
-        logging.debug(f"saving {artifact_name} to backend...{utils.get_root_run_id()}")
+        logging.debug(f"saving {artifact_name} to backend...{utils_ext.get_root_run_id()}")
 
         with open(f"/parent/app/artifacts/{artifact_name}", "wb") as artifact_handle:
             joblib.dump(artifact, artifact_handle)
 
         if distributed:
-            controller.log_artifact.remote(utils.get_root_run_id(), artifact, f"{artifact_name}")
+            controller.log_artifact.remote(utils_ext.get_root_run_id(), artifact, f"{artifact_name}")
         else:
-            utils.mlflow_log_artifact(utils.get_root_run_id(), artifact, f"{artifact_name}")
+            utils_ext.mlflow_log_artifact(utils_ext.get_root_run_id(), artifact, f"{artifact_name}")
         _set_out_of_sync(artifact_name)
 
         logging.debug(f"{artifact_name} saved to backend.")
@@ -74,7 +76,7 @@ def save_to_backend(artifact, artifact_name, distributed=True):
 def load_from_backend(artifact_name, distributed=True):
     artifact = None
     try:
-        run_id = utils.get_root_run_id()
+        run_id = utils_ext.get_root_run_id()
         logging.debug(f"Loading {artifact_name} from backend with run id {run_id}...")
         if run_id:
             if distributed:
@@ -87,7 +89,7 @@ def load_from_backend(artifact_name, distributed=True):
                     with open(f"/parent/app/artifacts/{artifact_name}", "wb") as artifact_handle:
                         joblib.dump(artifact, artifact_handle)
             else:
-                artifact = utils.mlflow_load_artifact(run_id,
+                artifact = utils_ext.mlflow_load_artifact(run_id,
                                                       artifact_name,
                                                       artifact_uri=f"runs:/{run_id}/{artifact_name}",
                                                       dst_path="/parent/app/artifacts")
@@ -104,7 +106,7 @@ def load_from_backend(artifact_name, distributed=True):
 ########################
 def save_model(model, model_name, flavor='sklearn'):
     try:
-        run_id = utils.get_root_run_id()
+        run_id = utils_ext.get_root_run_id()
         controller.log_model.remote(run_id,
                                     model,
                                     flavor,
@@ -120,7 +122,7 @@ def save_model(model, model_name, flavor='sklearn'):
 ########################
 def load_model(model_name, flavor='sklearn', stage='None'):
     try:
-        run_id = utils.get_root_run_id()
+        run_id = utils_ext.get_root_run_id()
         model_uri = f"models:/{model_name}/{stage}"
         result = controller.load_model.remote(run_id,
                                               flavor,
@@ -153,12 +155,12 @@ def load_offset(offset_name, distributed=True):
 # Log metric
 ########################
 def log_metric(metric, metric_name, distributed=True):
-    run_id = utils.get_root_run_id()
+    run_id = utils_ext.get_root_run_id()
     logging.info(f"Logging metric {metric_name} from backend with run id {run_id}...")
     if distributed:
         controller.log_metric.remote(run_id, key=metric_name, value=metric)
     else:
-        utils.mlflow_log_metric(run_id, key=metric_name, value=metric)
+        utils_ext.mlflow_log_metric(run_id, key=metric_name, value=metric)
 
 
 ########################

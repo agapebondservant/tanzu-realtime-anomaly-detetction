@@ -116,14 +116,14 @@ def get_min_index(df):
     return df.index.min()
 
 
-def filter_rows_by_head_or_tail(df, head=True, num_rows_in_head=None, num_rows_in_tail=None):
+"""def filter_rows_by_head_or_tail(df, head=True, num_rows_in_head=None, num_rows_in_tail=None):
     if (num_rows_in_head is not None) != (num_rows_in_tail is not None):
         raise ValueError(
             f"Exactly one of num_rows_head({num_rows_in_head}) and num_rows_tail({num_rows_in_tail}) must be passed, not both")
     if num_rows_in_head is not None:
         return df[:num_rows_in_head] if head else df[num_rows_in_head:]
     else:
-        return df[:-num_rows_in_tail] if head else df[-num_rows_in_tail:]
+        return df[:-num_rows_in_tail] if head else df[-num_rows_in_tail:]"""
 
 
 def append_json_list_to_dataframe(df, json_records, index_col=0):
@@ -181,14 +181,14 @@ def next_sequence_id():
     return sequence_id
 
 
-def get_next_rolling_window(current_dataset, num_shifts):
+"""def get_next_rolling_window(current_dataset, num_shifts):
     if not len(current_dataset):
         logging.error("Error: Cannot get the next rolling window for an empty dataset")
     else:
         new_dataset = pd.concat(
             [current_dataset[num_shifts % len(current_dataset):], current_dataset[:num_shifts % len(current_dataset)]])
         new_dataset.index = current_dataset.index + (current_dataset.index.freq * num_shifts)
-        return new_dataset
+        return new_dataset"""
 
 
 ################################################
@@ -200,11 +200,11 @@ def get_current_run_id():
     return last_active_run.info.run_id if last_active_run else None
 
 
-def get_root_run_id(experiment_names=['Default']):
+"""def get_root_run_id(experiment_names=['Default']):
     runs = mlflow.search_runs(experiment_names=experiment_names, filter_string="tags.runlevel='root'", max_results=1,
                               output_format='list')
     logging.debug(f"Parent run is...{runs}")
-    return runs[0].info.run_id if len(runs) else None
+    return runs[0].info.run_id if len(runs) else None"""
 
 
 def mlflow_log_model(parent_run_id, model, flavor, **kwargs):
@@ -239,16 +239,16 @@ def mlflow_log_dict(parent_run_id, dataframe=None, dict_name=None):
     logging.info("Logging was successful.")
 
 
-def mlflow_log_metric(parent_run_id, **kwargs):
+"""def mlflow_log_metric(parent_run_id, **kwargs):
     logging.info(f"In log_metric...run id = {parent_run_id}")
     mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
     MlflowClient().log_metric(parent_run_id, **kwargs)
 
-    logging.info("Logging was successful.")
+    logging.info("Logging was successful.")"""
 
 
-def mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs):
+"""def mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs):
     logging.info(f"In log_artifact...run id = {parent_run_id}, local_path")
     mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
 
@@ -256,7 +256,7 @@ def mlflow_log_artifact(parent_run_id, artifact, local_path, **kwargs):
         joblib.dump(artifact, artifact_handle)
     # synchronize_file_write(file=artifact, file_path=local_path)
     MlflowClient().log_artifact(parent_run_id, local_path, **kwargs)
-    logging.info("Logging was successful.")
+    logging.info("Logging was successful.")"""
 
 
 def mlflow_load_artifact(parent_run_id, artifact_name, **kwargs):
@@ -316,7 +316,7 @@ def mlflow_generate_autolog_metrics(flavor=None):
 
 
 def mlflow_evaluate_models(parent_run_id, flavor, baseline_model=None, candidate_model=None, data=None,
-                           version=None):
+                           version=None, baseline_model_name='baseline_model'):
     mlflow.set_tags({'mlflow.parentRunId': parent_run_id})
     logging.info(f"In evaluate_models...run id = {parent_run_id}")
     try:
@@ -341,7 +341,7 @@ def mlflow_evaluate_models(parent_run_id, flavor, baseline_model=None, candidate
         logging.info("Candidate model passed evaluation; promoting to Staging...")
 
         client.transition_model_version_stage(
-            name="baseline_model",
+            name=baseline_model_name,
             version=version,
             stage="Staging"
         )
@@ -351,7 +351,8 @@ def mlflow_evaluate_models(parent_run_id, flavor, baseline_model=None, candidate
         logging.info("Updating baseline model...")
         mlflow_log_model(candidate_model,
                          parent_run_id,
-                         registered_model_name='baseline_model',
+                         artifact_path=flavor,
+                         registered_model_name=baseline_model_name,
                          await_registration_for=None)
 
         logging.info("Evaluation complete.")

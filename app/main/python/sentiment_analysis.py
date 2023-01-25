@@ -160,3 +160,12 @@ def predict(text):
     transformed_sample = vectorizer.transform(sample)
     classes = ['negative', 'positive', 'neutral']
     return classes[model.predict(transformed_sample)[0]]
+
+
+def generate_dummy_model_data(num_classes=2, size=1000):
+    x = np.linspace(0, np.pi * 8, num=size)
+    y = np.random.randint(0, num_classes, int(size / num_classes))
+    dataset = pd.DataFrame(data={'x': x, 'target': y})
+    now = pytz.utc.localize(datetime.now())
+    dataset.index = dataset.index.map(lambda i: now + timedelta(minutes=i))
+    return dataset

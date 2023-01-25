@@ -142,7 +142,7 @@ def sentiment_analysis_needs_training():
     return feature_store.load_artifact('sentiment_analysis_is_trained', distributed=False) is None
 
 
-def anomaly_detection_training_pipeline(sample_frequency, reporting_timeframe, rebuild=False):
+def anomaly_detection_training_pipeline_old(sample_frequency, reporting_timeframe, rebuild=False):
     with mlflow.start_run(run_id=utils.get_current_run_id(), run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
                           nested=True):
         logging.info("Starting Anomaly Detection Training Pipeline.......................")
@@ -259,6 +259,10 @@ def anomaly_detection_inference_pipeline(sample_frequency, reporting_timeframe):
         # Retrieve stepwise_fit (used by ARIMA model only)
         stepwise_fit = feature_store.load_artifact('anomaly_auto_arima', distributed=False)
 
+        if stepwise_fit is None:
+            logging.info("ARIMA model not yet available.")
+            return None
+
         # Retrieve training results
         model_results = settings.anomaly_detection.get_prior_forecasts()
 
@@ -335,11 +339,6 @@ def initialize():
             queue_suffix = '' if settings.model_stage == 'Production' else f"-{settings.model_type}"
             config.dashboard_monitor = DashboardMonitor(host=config.host, queue=f"{config.dashboard_queue}{queue_suffix}")
             config.dashboard_monitor.start()
-
-    # if config.dashboard_notifier_thread is None:
-    #    config.dashboard_notifier_thread = MonitorThread(interval=config.dashboard_refresh_interval,
-    #                                                     monitor=notifier.Notifier(host=config.host, data=config.data_published_msg))
-    #    config.dashboard_notifier_thread.start()
 
 
 initialize()

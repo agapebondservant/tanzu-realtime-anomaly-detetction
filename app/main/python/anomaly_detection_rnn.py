@@ -10,48 +10,26 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 import numpy as np
 import logging
-from statsmodels.tsa.seasonal import seasonal_decompose
-from pylab import rcParams
-from datetime import datetime
-from statsmodels.tsa.holtwinters import SimpleExpSmoothing, ExponentialSmoothing
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error
-from statsmodels.tsa.statespace.tools import diff
-from statsmodels.tsa.stattools import acovf, acf, pacf, pacf_yw, pacf_ols
-from pandas.plotting import lag_plot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quarter_plot
 from statsmodels.tsa.stattools import adfuller
-from statsmodels.tools.eval_measures import mse, rmse, meanabs, aic, bic
-from pmdarima import auto_arima
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import datetime, timedelta
 from sklearn.preprocessing import StandardScaler
-from sklearn.compose import ColumnTransformer
-from statsmodels.tsa.arima.model import ARIMA
-from statistics import median, mean
-import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
-import pytz
-import warnings
 import scipy.stats as st
-import math
-import seaborn as sns
-from pylab import rcParams
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
-from sklearn.model_selection import train_test_split
 import re
-import pytz
-import math
 import json
-from app.main.python import feature_store, data_source, config, anomaly_detection
-from app.main.python.utils import utils
-from app.main.python.metrics import prometheus_metrics_util
+from app.main.python import feature_store, data_source, anomaly_detection
+from app.main.python.utils import utils, config
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from mlmetrics import exporter
+import distributed.ray.utilities as utils_ext
+from rabbitmq.connection.rabbitmq_producer import RabbitMQProducer
+import pika
 
 
 ########################################################################################################################
@@ -269,7 +247,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     # set the test data
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
     actual_negative_sentiments_test = actual_negative_sentiments.iloc[
-                                      training_window_size:].dropna() if rebuild else utils.get_next_rolling_window(
+                                      training_window_size:].dropna() if rebuild else utils_ext.get_next_rolling_window(
         actual_negative_sentiments, sliding_window_size)
 
     scaled_test = standard_scaler_rnn.transform(actual_negative_sentiments_test[['sentiment']])
@@ -392,7 +370,8 @@ def plot_trend_with_anomalies(total_negative_sentiments, model_rnn_results_full,
     logging.info(f"end date is {end_date} {target}")
     start_date = end_date - timedelta(hours=get_time_lags(timeframe))
     marker_date_end = end_date if fitted_values_forecasted is not None else None
-    marker_date_start = max(end_date - timedelta(minutes=data_freq * len(target)), utils.get_max_index(target)) if fitted_values_forecasted is not None else None
+    marker_date_start = max(end_date - timedelta(minutes=data_freq * len(target)),
+                            utils.get_max_index(target)) if fitted_values_forecasted is not None else None
 
     # TODO: Publish metrics to queue
     exporter.prepare_histogram('anomaly_mae_error',
@@ -439,11 +418,12 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         num_shifts = total_training_window + total_forecast_size - len(actual_negative_sentiments)
         actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(total_training_window)]
         actual_negative_sentiments_test = actual_negative_sentiments.iloc[int(total_training_window):]
-        actual_negative_sentiments_test = utils.get_next_rolling_window(actual_negative_sentiments_test,
-                                                                        num_shifts) if num_shifts else actual_negative_sentiments_test
+        actual_negative_sentiments_test = utils_ext.get_next_rolling_window(actual_negative_sentiments_test,
+                                                                            num_shifts) if num_shifts else actual_negative_sentiments_test
     else:
         actual_negative_sentiments_train = actual_negative_sentiments
-        actual_negative_sentiments_test = utils.get_next_rolling_window(actual_negative_sentiments, sliding_window_size)
+        actual_negative_sentiments_test = utils_ext.get_next_rolling_window(actual_negative_sentiments,
+                                                                            sliding_window_size)
 
     # Load the model
     rnn_model = feature_store.load_model('anomaly_rnn_model', flavor='tensorflow')
@@ -552,7 +532,8 @@ def get_time_lags(timeframe='day'):
 def publish_trend_stats(actual_negative_sentiments=None):
     logging.info("In publish_trend_stats...")
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False, can_cache=False)
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False,
+                                                                 can_cache=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 
@@ -582,9 +563,6 @@ def publish_trend_stats(actual_negative_sentiments=None):
     logging.info(f"New Summary: {new_summary}")
 
     feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
-
-    # Publish to queue
-    # config.stats_publisher.send_data(new_summary)
 
     return new_summary
 
@@ -619,6 +597,5 @@ def get_utility_vars():
 # Utility: Check if retraining is required
 # (data normalizers, etc)
 #######################################
-# TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
     return feature_store.load_artifact('anomaly_detection_rnn_is_trained', distributed=False) is None
