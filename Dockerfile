@@ -23,7 +23,7 @@ RUN apt-get update \
     " > /root/.streamlit/credentials.toml'
 
 COPY app ./app
-COPY rabbitmq ./rabbitmq
+# COPY rabbitmq ./rabbitmq
 COPY data ./data
 COPY assets ./assets
 EXPOSE 8501
