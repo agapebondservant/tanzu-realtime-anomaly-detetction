@@ -14,6 +14,7 @@ from app.main.python import config, csv_data_source
 from app.main.python.utils import utils
 from app.main.python.subscribers.firehose_monitor import FirehoseMonitor
 from app.main.python.settings import settings
+import distributed.ray.utilities as utils_ext
 import mlflow
 from datetime import datetime
 import os
@@ -138,7 +139,6 @@ def anomaly_detection_needs_training():
 
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def sentiment_analysis_needs_training():
-    logging.info(f"Needs training ... {feature_store.load_artifact('sentiment_analysis_is_trained', distributed=False) is None}")
     return feature_store.load_artifact('sentiment_analysis_is_trained', distributed=False) is None
 
 
@@ -225,7 +225,7 @@ def anomaly_detection_training_pipeline_old(sample_frequency, reporting_timefram
                                                                        data_freq=data_freq)
 
             # TEMPORARY: Set a flag indicating that training was done
-            feature_store.save_artifact(True, 'anomaly_detection_is_trained', distributed=False)
+            settings.anomaly_detection.anomaly_detection_is_trained()
 
             return fig
 

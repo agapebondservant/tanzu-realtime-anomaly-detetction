@@ -2,10 +2,8 @@ import streamlit as st
 import logging
 from app.main.python.ui import dashboard_widgets
 from app.main.python import main, config
-from app.main.python.utils import utils
 import time
 from streamlit_autorefresh import st_autorefresh
-from app.main.python.settings import settings
 
 
 # Initializations
@@ -51,6 +49,7 @@ with tab1:
 
     st.markdown("<div class='blinking'>&nbsp;</div>", unsafe_allow_html=True)
 
+    logging.info('rendering anomaly detection...')
     dashboard_widgets.render_anomaly_detection_dashboard(timeframe2)
 
 # Posts

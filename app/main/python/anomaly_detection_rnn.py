@@ -21,15 +21,13 @@ import scipy.stats as st
 import re
 import json
 from app.main.python import feature_store, data_source, anomaly_detection
-from app.main.python.utils import utils, config
+from app.main.python.utils import utils
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from mlmetrics import exporter
 import distributed.ray.utilities as utils_ext
-from rabbitmq.connection.rabbitmq_producer import RabbitMQProducer
-import pika
 
 
 ########################################################################################################################
@@ -599,3 +597,11 @@ def get_utility_vars():
 #######################################
 def anomaly_detection_needs_training():
     return feature_store.load_artifact('anomaly_detection_rnn_is_trained', distributed=False) is None
+
+
+#######################################
+# Utility: Set flag indicating that model
+# is trained
+#######################################
+def anomaly_detection_is_trained():
+    feature_store.save_artifact(True, 'anomaly_detection_rnn_is_trained', distributed=False)

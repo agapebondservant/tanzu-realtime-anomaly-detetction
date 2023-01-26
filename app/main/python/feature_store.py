@@ -1,16 +1,15 @@
-import joblib
-import logging
-# from app.main.python.distributed.controllers import ScaledTaskController
-from distributed.ray.distributed import ScaledTaskController
-import distributed.ray.utilities as utils_ext
 import os
 # from app.main.python.utils import utils
 import ray
-from os.path import exists
 
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
                       'env_vars': dict(os.environ),
                       'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
+import joblib
+import logging
+from os.path import exists
+from distributed.ray.distributed import ScaledTaskController
+import distributed.ray.utilities as utils_ext
 
 controller = ScaledTaskController.remote()
 

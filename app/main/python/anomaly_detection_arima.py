@@ -3,13 +3,13 @@
 ########################
 import ray
 import os
+import logging
 
 ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
                       'env_vars': dict(os.environ),
                       'excludes': ['*.jar', '.git*/', 'jupyter/']}) if not ray.is_initialized() else True
 import pandas as pd
 import numpy as np
-import logging
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quarter_plot
 from statsmodels.tsa.stattools import adfuller
@@ -24,11 +24,9 @@ import re
 import math
 import json
 from app.main.python import feature_store, data_source, anomaly_detection
-from app.main.python.utils import utils, config
+from app.main.python.utils import utils
 import distributed.ray.utilities as utils_ext
 from mlmetrics import exporter
-from rabbitmq.connection.rabbitmq_producer import RabbitMQProducer
-import pika
 
 
 ########################################################################################################################
@@ -482,3 +480,11 @@ def get_utility_vars():
 #######################################
 def anomaly_detection_needs_training():
     return feature_store.load_artifact('anomaly_detection_arima_is_trained', distributed=False) is None
+
+
+#######################################
+# Utility: Set flag indicating that model
+# is trained
+#######################################
+def anomaly_detection_is_trained():
+    feature_store.save_artifact(True, 'anomaly_detection_arima_is_trained', distributed=False)

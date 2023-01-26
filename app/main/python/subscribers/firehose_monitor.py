@@ -24,12 +24,13 @@ class FirehoseMonitor(subscriber.Subscriber):
                                               queue_arguments=queue_arguments, consumer_arguments=consumer_arguments,
                                               offset=offset, prefetch_count=prefetch_count,
                                               conn_retry_count=conn_retry_count,
-                                              receive_callback=FirehoseMonitor.receive_messages)
+                                              receive_callback=FirehoseMonitor.receive_messages,
+                                              passive=True)
         self.new_data = None
 
     def receive_messages(self, header, body):
         # Only start making updates to the dataset when the publisher is ready
-        if header.timestamp > feature_store.load_offset('original', distributed=False):
+        if header.timestamp > (feature_store.load_offset('original', distributed=False) or float('inf')):
 
             # track new data
             if self.new_data is None:

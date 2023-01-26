@@ -4,8 +4,6 @@ ENV PYTHONIOENCODING=UTF-8
 
 WORKDIR /parent
 COPY requirements.txt ./requirements.txt
-COPY Pipfile ./Pipfile
-COPY Pipfile.lock ./Pipfile.lock
 
 RUN apt-get update \
     && apt-get install g++ -y \
@@ -13,14 +11,8 @@ RUN apt-get update \
     && apt-get install -y default-libmysqlclient-dev \
     && apt-get install -y git \
     && apt-get clean && \
-    pip3 install -r requirements.txt && \
-    mkdir -p /root/.streamlit && \
-    mkdir -p /root/.streamlit && \
-    bash -c 'echo -e "\
-    [general]\n\
-    email = \"\"\n\
-    headless = true\n\
-    " > /root/.streamlit/credentials.toml'
+    pip3 install --no-cache-dir  -r requirements.txt && \
+    mkdir -p /root/.streamlit
 
 COPY app ./app
 # COPY rabbitmq ./rabbitmq
